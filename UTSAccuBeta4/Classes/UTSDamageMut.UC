@@ -1,3 +1,14 @@
+// =============================================================================
+//                      UTS Accuracy Package Beta 4.0
+//                                   ~
+//                    UTStats - UTPro statistics addon
+//                        © 2005 )°DoE°(-AnthraX
+// =============================================================================
+// !!! THE UNREAL OPEN MOD LICENSE DOES NOT APPLY TO THIS PACKAGE
+//     , YOU ARE NOT ALLOWED TO COPY OR CHANGE ANY OF THE CODE INCLUDED
+//     IN THIS PACKAGE WITHOUT WRITTEN PERMISSION FROM AnthraX (Unrealadmin) !!!
+// =============================================================================
+
 class UTSDamageMut extends Mutator;
 
 struct PlayerInfo
@@ -12,6 +23,7 @@ var int currentID;
 var string zzGLTag;
 
 var bool bClickboard;
+var bool bUTStatsRunning;
 
 // =============================================================================
 // Setup the damagemut
@@ -24,7 +36,7 @@ function PostBeginPlay()
    for (i=0;i<32;++i)
       zzPI[i].zzPID = -1;
 
-   Log("### UTSAccu package loaded!");
+   //Log("### UTSAccu package loaded!");
 
    Level.Game.RegisterDamageMutator(self);
 
@@ -33,7 +45,7 @@ function PostBeginPlay()
 }
 
 // =============================================================================
-// Handle damage
+// MutatorTakeDamage ~ Handle damage and dispatch to the right Replicationclass
 // =============================================================================
 
 function MutatorTakeDamage( out int ActualDamage, Pawn Victim, Pawn InstigatedBy, out Vector HitLocation, out Vector Momentum, name DamageType)
@@ -41,14 +53,12 @@ function MutatorTakeDamage( out int ActualDamage, Pawn Victim, Pawn InstigatedBy
    local int i, VictimPID, InstigatorPID;
    local bool bVictimFound, bInstigatorFound;
 
-   super.MutatorTakeDamage(ActualDamage,Victim,InstigatedBy,HitLocation,Momentum,DamageType);
-
-   if (Victim != None && Victim.IsA('Pawn') && Victim.PlayerReplicationInfo != None)
+   if (Victim != None && Victim.PlayerReplicationInfo != None)
        VictimPID = Victim.PlayerReplicationInfo.PlayerID;
    else
        bVictimFound = true;
 
-   if (InstigatedBy != None && InstigatedBy.IsA('Pawn') && InstigatedBy.PlayerReplicationInfo != None)
+   if (InstigatedBy != None && InstigatedBy.PlayerReplicationInfo != None)
        InstigatorPID = InstigatedBy.PlayerReplicationInfo.PlayerID;
    else
        bInstigatorFound = true;
@@ -57,111 +67,28 @@ function MutatorTakeDamage( out int ActualDamage, Pawn Victim, Pawn InstigatedBy
    {
        if (!bVictimFound && (zzPI[i].zzPID == VictimPID) && (zzPI[i].zzRI != None))
        {
-           zzPI[i].zzRI.ReceivedDamage(ActualDamage);
+           zzPI[i].zzRI.zzReceivedDamage(ActualDamage);
            bVictimFound = true;
        }
        if (!bInstigatorFound && (zzPI[i].zzPID == InstigatorPID) && (zzPI[i].zzRI != None))
        {
            if ((Victim != InstigatedBy) && (bNoTeamGame || Victim.PlayerReplicationInfo.Team != InstigatedBy.PlayerReplicationInfo.Team))
-               zzPI[i].zzRI.GaveDamage(DamageType,ActualDamage);
+               zzPI[i].zzRI.zzGaveDamage(DamageType,ActualDamage);
            bInstigatorFound = true;
        }
        if (bVictimFound && bInstigatorFound)
            break;
-
    }
+
+   if (NextDamageMutator != None)
+        NextDamageMutator.MutatorTakeDamage(ActualDamage,Victim,InstigatedBy,HitLocation,Momentum,DamageType);
 }
 
 // =============================================================================
-// HandlePickupQuery ~ Used to fix minigun
+// zzEffectPlus ~ Called by UTSEffectsSN when Actor A fires an effectshot
 // =============================================================================
 
-function bool HandlePickupQuery(Pawn Other, Inventory item, out byte bAllowPickup)
-{
-    local int i;
-
-    if (item.IsA('Minigun2'))
-    {
-        for (i=0;i<32;++i)
-        {
-            if (zzPI[i].zzPID == Other.PlayerReplicationInfo.PlayerID)
-            {
-                if (!Weapon(item).bWeaponStay)
-                {
-                    zzPI[i].zzRI.bHasMini = true;
-                    zzPI[i].zzRI.GiveMiniBullets(Weapon(item).PickupAmmoCount,false);
-                }
-                else
-                    zzPI[i].zzRI.GiveMiniBullets(Weapon(item).PickupAmmoCount,true,true);
-                break;
-            }
-        }
-    }
-    else if (item.IsA('enforcer'))
-    {
-        for (i=0;i<32;++i)
-        {
-            if (zzPI[i].zzPID == Other.PlayerReplicationInfo.PlayerID)
-            {
-                if (!Weapon(item).bWeaponStay)
-                    zzPI[i].zzRI.GiveMiniBullets(Weapon(item).PickupAmmoCount,false);
-                else
-                    zzPI[i].zzRI.GiveMiniBullets(Weapon(item).PickupAmmoCount,true,,true);
-                break;
-            }
-        }
-    }
-    else if (item.IsA('PulseGun'))
-    {
-        for (i=0;i<32;++i)
-        {
-            if (zzPI[i].zzPID == Other.PlayerReplicationInfo.PlayerID)
-            {
-                if (!Weapon(item).bWeaponStay)
-                {
-                    zzPI[i].zzRI.bHasPulse = true;
-                    zzPI[i].zzRI.GivePulseAmmo(Weapon(item).PickupAmmoCount,false);
-                }
-                else
-                    zzPI[i].zzRI.GivePulseAmmo(Weapon(item).PickupAmmoCount,true);
-                break;
-            }
-        }
-    }
-    else if (item.IsA('miniammo'))
-    {
-        for (i=0;i<32;++i)
-        {
-            if (zzPI[i].zzPID == Other.PlayerReplicationInfo.PlayerID)
-            {
-                zzPI[i].zzRI.GiveMiniBullets(Ammo(item).AmmoAmount,false);
-                break;
-            }
-        }
-    }
-    else if (item.IsA('PAmmo'))
-    {
-        for (i=0;i<32;++i)
-        {
-            if (zzPI[i].zzPID == Other.PlayerReplicationInfo.PlayerID)
-            {
-                zzPI[i].zzRI.GivePulseAmmo(Ammo(item).AmmoAmount,false);
-                break;
-            }
-        }
-    }
-
-    if (NextMutator != None)
-        return NextMutator.HandlePickupQuery(Other, item, bAllowPickup);
-    return false;
-
-}
-
-// =============================================================================
-// EffectPlus, EffectMin, ProjPlus ~ Called by SpawnNotify classes
-// =============================================================================
-
-function EffectPlus (Actor A)
+function zzEffectPlus (Actor A)
 {
     local int i;
 
@@ -169,42 +96,50 @@ function EffectPlus (Actor A)
     {
         if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
         {
-            zzPI[i].zzRI.EffectPlus(A);
-            break;
-        }
-    }
-}
-
-function EffectMin (Actor A)
-{
-    local int i;
-
-    for (i=0;i<32;++i)
-    {
-        if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
-        {
-            zzPI[i].zzRI.EffectMin(A);
-            break;
-        }
-    }
-}
-
-function ProjPlus (Actor A)
-{
-    local int i;
-
-    for (i=0;i<32;++i)
-    {
-        if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
-        {
-            zzPI[i].zzRI.ProjPlus(A);
+            zzPI[i].zzRI.zzEffectPlus(A);
             break;
         }
     }
 }
 
 // =============================================================================
-// Process new players
+// zzEffectMin ~ Called by UTSEffectsSN when Actor A fires a shockcombo
+// =============================================================================
+
+function zzEffectMin (Actor A)
+{
+    local int i;
+
+    for (i=0;i<32;++i)
+    {
+        if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
+        {
+            zzPI[i].zzRI.zzEffectMin(A);
+            break;
+        }
+    }
+}
+
+// =============================================================================
+// zzProjPlus ~ Called by UTSProjectileSN when Actor A fires a projectile
+// =============================================================================
+
+function zzProjPlus (Actor A)
+{
+    local int i;
+
+    for (i=0;i<32;++i)
+    {
+        if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
+        {
+            zzPI[i].zzRI.zzProjPlus(A);
+            break;
+        }
+    }
+}
+
+// =============================================================================
+// Tick ~ Scan for new players
 // =============================================================================
 
 function Tick (float DeltaTime)
@@ -218,16 +153,21 @@ function Tick (float DeltaTime)
            if (P.PlayerReplicationInfo.PlayerID == currentID)
            {
                currentID++;
-               InitPlayer(P);
+               zzInitPlayer(P);
                break;
            }
        }
    }
 }
 
-function InitPlayer (Pawn P)
+// =============================================================================
+// zzInitPlayer ~ Initialize a new pawn
+// =============================================================================
+
+function zzInitPlayer (Pawn P)
 {
    local int i;
+   local string zzPath;
 
    if (currentID < 32)
        i = currentID;
@@ -244,8 +184,22 @@ function InitPlayer (Pawn P)
    zzPI[i].zzRI = Spawn(class'UTSReplicationInfo',P,,P.Location);
    if (bClickboard)
    zzPI[i].zzRI.bClickboard = true;
-   zzPI[i].zzRI.InitRI();
    zzPI[i].zzRI.bUTGLActive = bUTGLEnabled;
+   zzPI[i].zzRI.bUTStatsRunning = bUTStatsRunning;
+   zzPI[i].zzRI.bDeleteObj = false;
+   zzPI[i].zzRI.InitRI();
+}
+
+// =============================================================================
+// IPOnly ~ return IP without the portnr
+// =============================================================================
+
+function string IPOnly (string zzIP)
+{
+    if (InStr(zzIP,":") != -1)
+        return Left(zzIP,InStr(zzIP,":"));
+    else
+        return zzIP;
 }
 
 // =============================================================================
@@ -305,6 +259,24 @@ function DoSuicide (PlayerReplicationInfo PRI)
 }
 
 // =============================================================================
+// Log caps
+// =============================================================================
+
+function DoCap (PlayerReplicationInfo PRI)
+{
+    local int i;
+
+    for (i=0;i<32;++i)
+    {
+        if (PRI.PlayerID == zzPI[i].zzPID && zzPI[i].zzRI != None)
+        {
+            zzPI[i].zzRI.zzCaps++;
+            break;
+        }
+    }
+}
+
+// =============================================================================
 // Accu accessor
 // =============================================================================
 
@@ -324,43 +296,29 @@ function float GetAccuracy ( PlayerReplicationInfo PRI )
     }
 }
 
+// =============================================================================
+// RI Accessor
+// =============================================================================
+
+function UTSReplicationInfo GetRI ( PlayerReplicationInfo PRI )
+{
+    local int i;
+
+    for (i=0;i<32;++i)
+    {
+        if (zzPI[i].zzPID == PRI.PlayerID)
+        {
+            return zzPI[i].zzRI;
+        }
+    }
+
+    return none;
+}
+
+// =============================================================================
+// Defaultproperties
+// =============================================================================
+
 defaultproperties
 {
-      zzPI(0)=(zzRI=None,zzPID=0)
-      zzPI(1)=(zzRI=None,zzPID=0)
-      zzPI(2)=(zzRI=None,zzPID=0)
-      zzPI(3)=(zzRI=None,zzPID=0)
-      zzPI(4)=(zzRI=None,zzPID=0)
-      zzPI(5)=(zzRI=None,zzPID=0)
-      zzPI(6)=(zzRI=None,zzPID=0)
-      zzPI(7)=(zzRI=None,zzPID=0)
-      zzPI(8)=(zzRI=None,zzPID=0)
-      zzPI(9)=(zzRI=None,zzPID=0)
-      zzPI(10)=(zzRI=None,zzPID=0)
-      zzPI(11)=(zzRI=None,zzPID=0)
-      zzPI(12)=(zzRI=None,zzPID=0)
-      zzPI(13)=(zzRI=None,zzPID=0)
-      zzPI(14)=(zzRI=None,zzPID=0)
-      zzPI(15)=(zzRI=None,zzPID=0)
-      zzPI(16)=(zzRI=None,zzPID=0)
-      zzPI(17)=(zzRI=None,zzPID=0)
-      zzPI(18)=(zzRI=None,zzPID=0)
-      zzPI(19)=(zzRI=None,zzPID=0)
-      zzPI(20)=(zzRI=None,zzPID=0)
-      zzPI(21)=(zzRI=None,zzPID=0)
-      zzPI(22)=(zzRI=None,zzPID=0)
-      zzPI(23)=(zzRI=None,zzPID=0)
-      zzPI(24)=(zzRI=None,zzPID=0)
-      zzPI(25)=(zzRI=None,zzPID=0)
-      zzPI(26)=(zzRI=None,zzPID=0)
-      zzPI(27)=(zzRI=None,zzPID=0)
-      zzPI(28)=(zzRI=None,zzPID=0)
-      zzPI(29)=(zzRI=None,zzPID=0)
-      zzPI(30)=(zzRI=None,zzPID=0)
-      zzPI(31)=(zzRI=None,zzPID=0)
-      bUTGLEnabled=False
-      bNoTeamGame=False
-      CurrentID=0
-      zzGLTag=""
-      bClickboard=False
 }
