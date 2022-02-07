@@ -7,11 +7,31 @@ See license for more information.
 
 - - - -
 
-## Version 4.2 beta ##
+## Version 4.2a beta ##
 _Original release notes adapted for GitHub, with ChangeLog observations added_
+
+First fork of original UA code for UTAssault.net League Games and PUGs
+
 All release history can be found at https://unrealadmin.org/forums/forumdisplay.php?f=174
 
 ## ChangeLog ##
+
+### v4.2a beta  ###
+SmartAS:
+ - Moved some of the Assault-specific stats processing into a separate mod
+ - Introduced LeagueAssault match-mode support
+ - Pulled in additional Assault objective statistics
+ - Recorded additional events for Hammer and Rocket Launches, Hammer Jumps
+ - Recorded Objective assists
+ - Added better handling for spawn protection
+
+UT Stats:
+ - Merging of UTS Accuracy and main UT Stats packages
+ - Replication requirements largely removed, all processing done server-side
+ - Removal of beam spawnnotify
+ - Projectile spawnnotify reduced to Rocket Launcher and Bio Rifle
+ - UTGL removed
+ - Better Assault objective handling
 
 ### v4.2 beta (update) ###
 UTStats package:

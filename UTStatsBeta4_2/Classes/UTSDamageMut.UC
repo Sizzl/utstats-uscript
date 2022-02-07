@@ -1,3 +1,5 @@
+//================================================================================
+// UTSDamageMut (from UTSAccu)
 // =============================================================================
 //                      UTS Accuracy Package Beta 4.2
 //                                   ~
@@ -7,18 +9,17 @@
 // Released under the Unreal Open MOD License (included in zip package)
 // =============================================================================
 
-
 class UTSDamageMut extends Mutator;
 
 struct PlayerInfo
 {
-   var UTSReplicationInfo zzRI;
-   var int zzPID;
+  var UTSReplicationInfo zzRI;
+  var int zzPID;
 };
 
 var PlayerInfo zzPI[32];
 var bool bNoTeamGame;
-var int currentID;
+var int CurrentID;
 
 var bool bUTStatsRunning;
 var bool bInsta;
@@ -47,10 +48,10 @@ function PostBeginPlay()
    // Spawn projectile/effects catchers
    UTSPSN = Level.Spawn(class'UTSProjectileSN');
    UTSPSN.UTSDM = self;
-   UTSSBSN = Level.Spawn(class'UTSShockBeamSN');
-   UTSSBSN.UTSDM = Self;
-   UTSSSBSN = Level.Spawn(class'UTSSuperShockBeamSN');
-   UTSSSBSN.UTSDM = Self;
+   //UTSSBSN = Level.Spawn(class'UTSShockBeamSN');
+   //UTSSBSN.UTSDM = Self;
+   //UTSSSBSN = Level.Spawn(class'UTSSuperShockBeamSN');
+   //UTSSSBSN.UTSDM = Self;
    UTSCSN = Level.Spawn(class'UTSComboSN');
    UTSCSN.UTSDM = Self;
 }
@@ -95,40 +96,21 @@ function MutatorTakeDamage( out int ActualDamage, Pawn Victim, Pawn InstigatedBy
         NextDamageMutator.MutatorTakeDamage(ActualDamage,Victim,InstigatedBy,HitLocation,Momentum,DamageType);
 }
 
-// =============================================================================
-// zzBeamPlus ~ Called by UTSEffectsSN when Actor A fires a (super)shockbeam
-// =============================================================================
-
-function zzBeamPlus (Actor A)
+function zzCombo (Actor A)
 {
-    local int i;
+  local int i;
 
-    for (i=0;i<32;++i)
+  i = 0;
+  if ( i < 32 )
+  {
+    if ( zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID )
     {
-        if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
-        {
-            zzPI[i].zzRI.zzBeamPlus(A);
-            break;
-        }
+      zzPI[i].zzRI.zzCombo(A);
+    } else {
+      ++i;
+      goto JL0007;
     }
-}
-
-// =============================================================================
-// zzBeamMin ~ Called by UTSEffectsSN when Actor A fires a shockcombo
-// =============================================================================
-
-function zzBeamMin (Actor A)
-{
-    local int i;
-
-    for (i=0;i<32;++i)
-    {
-        if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
-        {
-            zzPI[i].zzRI.zzBeamMin(A);
-            break;
-        }
-    }
+  }
 }
 
 // =============================================================================
@@ -148,6 +130,7 @@ function zzProjPlus (Actor A)
         }
     }
 }
+
 
 // =============================================================================
 // Tick ~ Scan for new players
@@ -170,6 +153,7 @@ function Tick (float DeltaTime)
        currentID++;
    }
 }
+
 
 // =============================================================================
 // zzInitPlayer ~ Initialize a new pawn
@@ -211,6 +195,7 @@ function string IPOnly (string zzIP)
         return zzIP;
 }
 
+
 // =============================================================================
 // Accu accessor
 // =============================================================================
@@ -251,45 +236,37 @@ function UTSReplicationInfo GetRI ( PlayerReplicationInfo PRI )
 }
 
 // =============================================================================
-// Defaultproperties
+// zzBeamPlus ~ Called by UTSEffectsSN when Actor A fires a (super)shockbeam
 // =============================================================================
 
-defaultproperties
+function zzBeamPlus (Actor A)
 {
-      zzPI(0)=(zzRI=None,zzPID=0)
-      zzPI(1)=(zzRI=None,zzPID=0)
-      zzPI(2)=(zzRI=None,zzPID=0)
-      zzPI(3)=(zzRI=None,zzPID=0)
-      zzPI(4)=(zzRI=None,zzPID=0)
-      zzPI(5)=(zzRI=None,zzPID=0)
-      zzPI(6)=(zzRI=None,zzPID=0)
-      zzPI(7)=(zzRI=None,zzPID=0)
-      zzPI(8)=(zzRI=None,zzPID=0)
-      zzPI(9)=(zzRI=None,zzPID=0)
-      zzPI(10)=(zzRI=None,zzPID=0)
-      zzPI(11)=(zzRI=None,zzPID=0)
-      zzPI(12)=(zzRI=None,zzPID=0)
-      zzPI(13)=(zzRI=None,zzPID=0)
-      zzPI(14)=(zzRI=None,zzPID=0)
-      zzPI(15)=(zzRI=None,zzPID=0)
-      zzPI(16)=(zzRI=None,zzPID=0)
-      zzPI(17)=(zzRI=None,zzPID=0)
-      zzPI(18)=(zzRI=None,zzPID=0)
-      zzPI(19)=(zzRI=None,zzPID=0)
-      zzPI(20)=(zzRI=None,zzPID=0)
-      zzPI(21)=(zzRI=None,zzPID=0)
-      zzPI(22)=(zzRI=None,zzPID=0)
-      zzPI(23)=(zzRI=None,zzPID=0)
-      zzPI(24)=(zzRI=None,zzPID=0)
-      zzPI(25)=(zzRI=None,zzPID=0)
-      zzPI(26)=(zzRI=None,zzPID=0)
-      zzPI(27)=(zzRI=None,zzPID=0)
-      zzPI(28)=(zzRI=None,zzPID=0)
-      zzPI(29)=(zzRI=None,zzPID=0)
-      zzPI(30)=(zzRI=None,zzPID=0)
-      zzPI(31)=(zzRI=None,zzPID=0)
-      bNoTeamGame=False
-      CurrentID=0
-      bUTStatsRunning=False
-      bInsta=False
+    local int i;
+
+    for (i=0;i<32;++i)
+    {
+        if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
+        {
+            zzPI[i].zzRI.zzBeamPlus(A);
+            break;
+        }
+    }
+}
+
+// =============================================================================
+// zzBeamMin ~ Called by UTSEffectsSN when Actor A fires a shockcombo
+// =============================================================================
+
+function zzBeamMin (Actor A)
+{
+    local int i;
+
+    for (i=0;i<32;++i)
+    {
+        if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
+        {
+            zzPI[i].zzRI.zzBeamMin(A);
+            break;
+        }
+    }
 }

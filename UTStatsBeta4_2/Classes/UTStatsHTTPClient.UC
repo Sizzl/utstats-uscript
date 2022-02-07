@@ -1,3 +1,7 @@
+//================================================================================
+// UTStatsHTTPClient.
+//================================================================================
+
 class UTStatsHTTPClient extends UBrowserHTTPClient;
 
 function string GetIP ()
