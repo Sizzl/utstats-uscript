@@ -23,6 +23,7 @@ struct WeaponInfo
 
     // Ammocounting vars
     var bool bAmmoCountingMethod; // Determine no of fired shots by counting ammo?
+    var bool bAllowDoubleHit;
     var int zzAmmoCount;
 
     var bool bIgnoreAccu; // Ignore shotcount for this weapon?
@@ -34,12 +35,10 @@ var WeaponInfo zzWI[32];
 // Servervars!
 var Pawn P; // Pawn that owns this class
 var Weapon LastWeapon; // Weapon in the last tick
-var int zzShotCount,zzHitCount,zzLastShotCount,zzPID,zzSuicides,zzCaps;
-var string zzLogin;
+var int zzShotCount,zzHitCount,zzLastShotCount,zzPID;
 
 var bool bDeleteObj,bUTStatsRunning; // UTStats support ~ DeleteObj gets set when UTStats finished logging all values in the class
-var bool bClickboard,bReady; // Clickboard stuff
-var bool bUTGLActive; // UTPro support
+var bool bInstaGame;
 
 var int zzIndex; // Nr of weapons indexed
 var int zzSelectedWeapon; // Index of the current weapon
@@ -54,10 +53,10 @@ replication
 {
    // Variables: server -> all clients
    reliable if (ROLE == ROLE_AUTHORITY)
-       zzKillCount,zzDeathCount,zzSuicides,zzCaps,zzShotCount,zzHitCount,zzLogin,zzPID,bReady;
+       zzKillCount,zzDeathCount,zzShotCount,zzHitCount,zzPID;
    // Variables: server -> client that owns the class
    reliable if (bNetOwner && ROLE == ROLE_AUTHORITY)
-       zzIndex,zzSelectedWeapon,zzDamageGiven,zzDamageReceived,bUTGLActive;
+       zzIndex,zzSelectedWeapon,zzDamageGiven,zzDamageReceived;
    // Functioncalls: server -> client
    reliable if (ROLE == ROLE_AUTHORITY)
        zzClientTick,zzResetAmmoCount,zzReplicateWeapon,zzReplicateGaveDamage,zzReplicateShotCount,zzReplicateHitCount;
@@ -79,9 +78,7 @@ function InitRI()
 
    P = Pawn(Owner);
    zzPID = P.PlayerReplicationInfo.PlayerID;
-
-   if (bClickboard && Level.Game.IsA('DeathMatchPlus') && DeathMatchPlus(Level.Game).bTournament && DeathMatchPlus(Level.Game).CountDown > 0)
-       SetTimer(1.0,true);
+   bDeleteObj = false;
 
    for (i=0;i<32;++i)
    {
@@ -103,7 +100,7 @@ function Tick (float DeltaTime)
        // the class until the variables have been logged
        if (!bUTStatsRunning || bDeleteObj)
            Destroy();
-       goto'EndTick';
+       return;
    }
    else
    {
@@ -119,7 +116,7 @@ function Tick (float DeltaTime)
    if (((P.Weapon == None) || (!P.Weapon.bWeaponUp)))
    {
        LastWeapon = none;
-       goto'EndTick';
+       return;
    }
 
    // Weapon switch, process info
@@ -135,7 +132,6 @@ function Tick (float DeltaTime)
        zzClientTick();
    }
 
-   EndTick:
 }
 
 // =============================================================================
@@ -233,17 +229,18 @@ function zzInitWeapon(Weapon zzWeapon)
    zzWI[zzIndex].bIsASuperShockRifle = zzWeapon.IsA('SuperShockRifle');
 
    // These weapontypes are easy to track using ammo counting
-   if (zzWeapon.IsA('Minigun2') || zzWeapon.IsA('Ripper') || zzWeapon.IsA('PulseGun') || zzWeapon.IsA('Enforcer') || zzWeapon.IsA('UT_FlakCannon') || zzWeapon.IsA('SniperRifle'))
+   if (zzWeapon.IsA('Minigun2') || zzWeapon.IsA('Ripper') || zzWeapon.IsA('PulseGun') || zzWeapon.IsA('Enforcer') || zzWeapon.IsA('UT_FlakCannon') || zzWeapon.IsA('SniperRifle') || zzWeapon.IsA('AssaultRifle'))
        zzWI[zzIndex].bAmmoCountingMethod = true;
 
    // These weapontypes aren't relevant for the accu counting
    if (zzWeapon.IsA('Translocator') || zzWeapon.IsA('ImpactHammer'))
        zzWI[zzIndex].bIgnoreAccu = true;
 
-   zzWI[zzIndex++].zzDamageGiven = 0.0;
+   // One hit per player damaged
+   if (zzWI[zzIndex].bAmmoCountingMethod || zzWI[zzIndex].bIsASuperShockRifle)
+       zzWI[zzIndex].bAllowDoubleHit = true;
 
-   /*if (P.IsA('PlayerPawn'))
-       PlayerPawn(P).ClientMessage("### INITWEAPON"@zzWeapon.ItemName@zzIndex);*/
+   zzWI[zzIndex++].zzDamageGiven = 0.0;
 
    // Always replicate!
    zzReplicateWeapon(zzIndex-1,zzWeapon.class,zzWeapon.ItemName);
@@ -276,15 +273,6 @@ function zzUpdateHistory(int CurrentWeapon)
    }
 
    zzWeaponHistory[0] = CurrentWeapon;
-
-   /*if (P.IsA('PlayerPawn'))
-   {
-       for (i=0;i<32;++i)
-       {
-           if (zzWeaponHistory[i] != -1)
-               PlayerPawn(P).ClientMessage("###"@zzWeaponHistory[i]@zzWI[zzWeaponHistory[i]].zzWeaponName);
-       }
-   }*/
 }
 
 // =============================================================================
@@ -305,10 +293,11 @@ function zzGaveDamage(Name DamageType, int DamageGiven)
 
        if (zzWI[zzWeaponHistory[i]].FirstDamageType == DamageType || zzWI[zzWeaponHistory[i]].AltDamageType == DamageType)
        {
+           // found the weapon
            zzWI[zzWeaponHistory[i]].zzDamageGiven += DamageGiven;
 
            // Check if hitcount needs an update
-           if (zzWI[zzWeaponHistory[i]].zzShotCount > zzWI[zzWeaponHistory[i]].zzLastShotCount)
+           if (zzWI[zzWeaponHistory[i]].bAllowDoubleHit || (zzWI[zzWeaponHistory[i]].zzShotCount > zzWI[zzWeaponHistory[i]].zzLastShotCount))
            {
                zzWI[zzWeaponHistory[i]].zzHitCount++;
                zzHitCount++; // Automatic replication
@@ -337,10 +326,10 @@ function zzReceivedDamage(int DamageReceived)
 }
 
 // =============================================================================
-// zzEffectPlus ~ Called by DamageMut whenever the pawn fires an 'effectshot'
+// zzBeamPlus ~ Called by DamageMut whenever the pawn fires a (super)shockbeam
 // =============================================================================
 
-function zzEffectPlus (Actor A)
+function zzBeamPlus (Actor A)
 {
    local int i;
 
@@ -351,15 +340,7 @@ function zzEffectPlus (Actor A)
        if (zzWeaponHistory[i] == -1)
            break;
 
-       if (zzWI[zzWeaponHistory[i]].bIsASuperShockRifle && A.IsA('SuperShockBeam'))
-       {
-           zzWI[zzWeaponHistory[i]].zzShotCount++;
-
-           if (bShowingScores)
-               zzReplicateShotCount(zzWeaponHistory[i],zzWI[zzWeaponHistory[i]].zzShotCount);
-           break;
-       }
-       else if (zzWI[zzWeaponHistory[i]].bIsAShockRifle && A.IsA('ShockBeam'))
+       if (zzWI[zzWeaponHistory[i]].bIsASuperShockRifle || zzWI[zzWeaponHistory[i]].bIsAShockRifle)
        {
            zzWI[zzWeaponHistory[i]].zzShotCount++;
 
@@ -371,22 +352,21 @@ function zzEffectPlus (Actor A)
 }
 
 // =============================================================================
-// zzEffectMin ~ Called by DamageMut whenever the pawn fires an shockcombo
+// zzBeamMin ~ Called by DamageMut whenever the pawn fires a shockcombo
 // =============================================================================
 
-function zzEffectMin (Actor A)
+function zzBeamMin (Actor A)
 {
    local int i;
 
    zzShotCount--; // Automatic replication
-
 
    for (i=0;i<32;++i)
    {
        if (zzWeaponHistory[i] == -1)
            break;
 
-       if (zzWI[zzWeaponHistory[i]].bIsAShockRifle && A.IsA('UT_ComboRing'))
+       if (zzWI[zzWeaponHistory[i]].bIsAShockRifle)
        {
            zzWI[zzWeaponHistory[i]].zzShotCount--;
 
@@ -405,11 +385,6 @@ function zzProjPlus (Actor A)
 {
    local int i;
 
-   /*if (P.IsA('PlayerPawn'))
-   {
-       PlayerPawn(P).ClientMessage("### PROJPLUS"@A.class);
-   }*/
-
    for (i=0;i<32;++i)
    {
        if (zzWeaponHistory[i] == -1)
@@ -420,11 +395,6 @@ function zzProjPlus (Actor A)
            // Ignore weapons we track by using the ammocountingmethod
            if (zzWI[zzWeaponHistory[i]].bAmmoCountingMethod)
                break;
-
-           /*if (P.IsA('PlayerPawn'))
-           {
-               PlayerPawn(P).ClientMessage("### PROJPLUS OK");
-           }*/
 
            zzShotCount++; // Automatic replication
            zzWI[zzWeaponHistory[i]].zzShotCount++;
@@ -503,37 +473,90 @@ simulated function float GetAccu (int i)
 }
 
 // =============================================================================
-// Clickboard stuff
-// =============================================================================
-
-function Timer()
-{
-   if (Owner == None)
-   {
-       Destroy();
-       return;
-   }
-
-   if (Level == None || Level.Game == None || DeathMatchPlus(Level.Game) == None)
-       return;
-
-   if (DeathMatchPlus(Level.Game).CountDown > 0)
-   {
-       if (Owner.IsA('Bot') || (Owner.IsA('PlayerPawn') && !Owner.IsA('Spectator') && PlayerPawn(Owner).bReadyToPlay))
-           bReady = true;
-   }
-   else
-   {
-       bReady = false;
-       SetTimer(0.0,false);
-   }
-}
-
-// =============================================================================
 // Defaultproperties
 // =============================================================================
 
 defaultproperties
 {
+      zzWI(0)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(1)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(2)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(3)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(4)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(5)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(6)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(7)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(8)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(9)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(10)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(11)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(12)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(13)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(14)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(15)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(16)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(17)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(18)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(19)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(20)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(21)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(22)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(23)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(24)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(25)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(26)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(27)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(28)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(29)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(30)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      zzWI(31)=(zzWeapon=None,zzWeaponName="",zzWeaponClass=None,zzShotCount=0,zzLastShotCount=0,zzHitCount=0,zzDamageGiven=0.000000,FirstDamageType="None",AltDamageType="None",FirstProjClass=None,AltProjClass=None,bAmmoCountingMethod=False,bAllowDoubleHit=False,zzAmmoCount=0,bIgnoreAccu=False,bIsAShockRifle=False,bIsASuperShockRifle=False)
+      P=None
+      LastWeapon=None
+      zzShotCount=0
+      zzHitCount=0
+      zzLastShotCount=0
+      zzPID=0
+      bDeleteObj=False
+      bUTStatsRunning=False
+      bInstaGame=False
+      zzIndex=0
+      zzSelectedWeapon=0
+      zzWeaponHistory(0)=0
+      zzWeaponHistory(1)=0
+      zzWeaponHistory(2)=0
+      zzWeaponHistory(3)=0
+      zzWeaponHistory(4)=0
+      zzWeaponHistory(5)=0
+      zzWeaponHistory(6)=0
+      zzWeaponHistory(7)=0
+      zzWeaponHistory(8)=0
+      zzWeaponHistory(9)=0
+      zzWeaponHistory(10)=0
+      zzWeaponHistory(11)=0
+      zzWeaponHistory(12)=0
+      zzWeaponHistory(13)=0
+      zzWeaponHistory(14)=0
+      zzWeaponHistory(15)=0
+      zzWeaponHistory(16)=0
+      zzWeaponHistory(17)=0
+      zzWeaponHistory(18)=0
+      zzWeaponHistory(19)=0
+      zzWeaponHistory(20)=0
+      zzWeaponHistory(21)=0
+      zzWeaponHistory(22)=0
+      zzWeaponHistory(23)=0
+      zzWeaponHistory(24)=0
+      zzWeaponHistory(25)=0
+      zzWeaponHistory(26)=0
+      zzWeaponHistory(27)=0
+      zzWeaponHistory(28)=0
+      zzWeaponHistory(29)=0
+      zzWeaponHistory(30)=0
+      zzWeaponHistory(31)=0
+      zzDamageGiven=0
+      zzDamageReceived=0
+      zzKillCount=0
+      zzDeathCount=0
+      bShowingScores=False
       NetPriority=10.000000
 }

@@ -4,7 +4,7 @@ var UTSDamageMut UTSDM;
 
 simulated event Actor SpawnNotification(Actor A)
 {
-    if (A == None || UTSDM == None || A.Instigator == None)
+    if (A == None || A.Instigator == None)
         return A;
 
     // Ignore these types of projectiles to reduce load on the server
@@ -18,5 +18,6 @@ simulated event Actor SpawnNotification(Actor A)
 
 defaultproperties
 {
-     ActorClass=Class'Engine.Projectile'
+      UTSDM=None
+      ActorClass=Class'Engine.Projectile'
 }

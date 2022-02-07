@@ -2,21 +2,18 @@
 Logs game events in sql format for stat collection
 Copyright (C) 2004/2005 azazel, )°DoE°(-AnthraX and pjmodos
 
-This program is free software; you can redistribute and/or modify
-it under the terms of the Open Unreal Mod License.
+This program is free software; you can redistribute and/or modify it under the terms of the Open Unreal Mod License.
 See license for more information.
-
-_n.b. UTSAccuBeta packages were not originally released under the same license_
 
 - - - -
 
-## Version 4.0 beta ##
+## Version 4.2 beta ##
 _Original release notes adapted for GitHub, with ChangeLog observations added_
 All release history can be found at https://unrealadmin.org/forums/forumdisplay.php?f=174
 
 ## ChangeLog ##
 
-### v4.2 beta ###
+### v4.2 beta (update) ###
 UTStats package:
  - Domination logs only log when players are in
  - Fix Teamkills identified as kills in non-team games (gg Epic :/)
@@ -30,7 +27,10 @@ UTStats package:
  - Server IP lookup improved (credit to Cratos)
  - Assault FortStandard name logging added
 
-UTS Accuracy package: 
+UTS Accuracy package (UPDATED): 
+ - Released under matching Open Unreal Mod License
+ - Split Effect SpawnNotify to separately cover Projectiles, Shock beams, Combos and Instagib
+ - Removed duplicate UTGL/caps/suicide handling from UTS Accu mutator
  - Fix mutator chain
  - Added Replication Info handling
  - Improved effect handling

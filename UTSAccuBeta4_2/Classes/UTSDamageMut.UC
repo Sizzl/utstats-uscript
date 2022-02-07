@@ -1,13 +1,12 @@
 // =============================================================================
-//                      UTS Accuracy Package Beta 4.0
+//                      UTS Accuracy Package Beta 4.2
 //                                   ~
 //                    UTStats - UTPro statistics addon
 //                        © 2005 )°DoE°(-AnthraX
 // =============================================================================
-// !!! THE UNREAL OPEN MOD LICENSE DOES NOT APPLY TO THIS PACKAGE
-//     , YOU ARE NOT ALLOWED TO COPY OR CHANGE ANY OF THE CODE INCLUDED
-//     IN THIS PACKAGE WITHOUT WRITTEN PERMISSION FROM AnthraX (Unrealadmin) !!!
+// Released under the Unreal Open MOD License (included in zip package)
 // =============================================================================
+
 
 class UTSDamageMut extends Mutator;
 
@@ -18,12 +17,11 @@ struct PlayerInfo
 };
 
 var PlayerInfo zzPI[32];
-var bool bUTGLEnabled,bNoTeamGame;
+var bool bNoTeamGame;
 var int currentID;
-var string zzGLTag;
 
-var bool bClickboard;
 var bool bUTStatsRunning;
+var bool bInsta;
 
 // =============================================================================
 // Setup the damagemut
@@ -32,6 +30,10 @@ var bool bUTStatsRunning;
 function PostBeginPlay()
 {
    local int i;
+   local UTSProjectileSN UTSPSN;
+   local UTSShockBeamSN UTSSBSN;
+   local UTSSuperShockBeamSN UTSSSBSN;
+   local UTSComboSN UTSCSN;
 
    for (i=0;i<32;++i)
       zzPI[i].zzPID = -1;
@@ -40,8 +42,17 @@ function PostBeginPlay()
 
    Level.Game.RegisterDamageMutator(self);
 
-   if (InStr(CAPS(Level.ConsoleCommand("get Engine.GameEngine ServerActors")),".GLACTOR") != -1)
-       bUTGLEnabled = true;
+   bNoTeamGame = !Level.Game.bTeamGame;
+
+   // Spawn projectile/effects catchers
+   UTSPSN = Level.Spawn(class'UTSProjectileSN');
+   UTSPSN.UTSDM = self;
+   UTSSBSN = Level.Spawn(class'UTSShockBeamSN');
+   UTSSBSN.UTSDM = Self;
+   UTSSSBSN = Level.Spawn(class'UTSSuperShockBeamSN');
+   UTSSSBSN.UTSDM = Self;
+   UTSCSN = Level.Spawn(class'UTSComboSN');
+   UTSCSN.UTSDM = Self;
 }
 
 // =============================================================================
@@ -85,10 +96,10 @@ function MutatorTakeDamage( out int ActualDamage, Pawn Victim, Pawn InstigatedBy
 }
 
 // =============================================================================
-// zzEffectPlus ~ Called by UTSEffectsSN when Actor A fires an effectshot
+// zzBeamPlus ~ Called by UTSEffectsSN when Actor A fires a (super)shockbeam
 // =============================================================================
 
-function zzEffectPlus (Actor A)
+function zzBeamPlus (Actor A)
 {
     local int i;
 
@@ -96,17 +107,17 @@ function zzEffectPlus (Actor A)
     {
         if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
         {
-            zzPI[i].zzRI.zzEffectPlus(A);
+            zzPI[i].zzRI.zzBeamPlus(A);
             break;
         }
     }
 }
 
 // =============================================================================
-// zzEffectMin ~ Called by UTSEffectsSN when Actor A fires a shockcombo
+// zzBeamMin ~ Called by UTSEffectsSN when Actor A fires a shockcombo
 // =============================================================================
 
-function zzEffectMin (Actor A)
+function zzBeamMin (Actor A)
 {
     local int i;
 
@@ -114,7 +125,7 @@ function zzEffectMin (Actor A)
     {
         if (zzPI[i].zzPID == A.Instigator.PlayerReplicationInfo.PlayerID)
         {
-            zzPI[i].zzRI.zzEffectMin(A);
+            zzPI[i].zzRI.zzBeamMin(A);
             break;
         }
     }
@@ -150,13 +161,13 @@ function Tick (float DeltaTime)
    {
        for (P = Level.PawnList; P != None; P = P.NextPawn)
        {
-           if (P.PlayerReplicationInfo.PlayerID == currentID)
+           if (P.bIsPlayer && P.PlayerReplicationInfo.PlayerID == currentID)
            {
-               currentID++;
                zzInitPlayer(P);
                break;
            }
        }
+       currentID++;
    }
 }
 
@@ -182,11 +193,9 @@ function zzInitPlayer (Pawn P)
 
    zzPI[i].zzPID = P.PlayerReplicationInfo.PlayerID;
    zzPI[i].zzRI = Spawn(class'UTSReplicationInfo',P,,P.Location);
-   if (bClickboard)
-   zzPI[i].zzRI.bClickboard = true;
-   zzPI[i].zzRI.bUTGLActive = bUTGLEnabled;
    zzPI[i].zzRI.bUTStatsRunning = bUTStatsRunning;
    zzPI[i].zzRI.bDeleteObj = false;
+   zzPI[i].zzRI.bInstaGame = bInsta;
    zzPI[i].zzRI.InitRI();
 }
 
@@ -200,80 +209,6 @@ function string IPOnly (string zzIP)
         return Left(zzIP,InStr(zzIP,":"));
     else
         return zzIP;
-}
-
-// =============================================================================
-// Touch function, called by UTGL on login
-// =============================================================================
-
-function Touch (Actor A)
-{
-   local string zzGLInfo,zzLogin;
-   local int zzIndex, zzPID, zzOffset;
-
-   zzGLInfo = zzGLTag;
-
-   if (CAPS(Left(zzGLInfo,8)) == "UTGLJOIN")
-   {
-       zzIndex = InStr(zzGLInfo,chr(9));
-       if (zzIndex != -1)
-           zzGLInfo = Mid(zzGLInfo,zzIndex+1);
-
-       zzIndex = InStr(zzGLInfo,chr(9));
-       if (zzIndex != -1)
-       {
-           zzPID = int(Left(zzGLInfo,zzIndex));
-           zzGLInfo = Mid(zzGLInfo,zzIndex+1);
-       }
-
-       zzIndex = InStr(zzGLInfo,chr(9));
-       if (zzIndex != -1)
-           zzLogin = Left(zzGLInfo,zzIndex);
-   }
-
-   for (zzIndex=0;zzIndex<32;++zzIndex)
-   {
-       if(zzPI[zzIndex].zzPID == zzPID)
-       {
-           zzPI[zzIndex].zzRI.zzLogin = zzLogin;
-       }
-   }
-}
-
-// =============================================================================
-// Log suicides
-// =============================================================================
-
-function DoSuicide (PlayerReplicationInfo PRI)
-{
-    local int i;
-
-    for (i=0;i<32;++i)
-    {
-        if (PRI.PlayerID == zzPI[i].zzPID && zzPI[i].zzRI != None)
-        {
-            zzPI[i].zzRI.zzSuicides++;
-            break;
-        }
-    }
-}
-
-// =============================================================================
-// Log caps
-// =============================================================================
-
-function DoCap (PlayerReplicationInfo PRI)
-{
-    local int i;
-
-    for (i=0;i<32;++i)
-    {
-        if (PRI.PlayerID == zzPI[i].zzPID && zzPI[i].zzRI != None)
-        {
-            zzPI[i].zzRI.zzCaps++;
-            break;
-        }
-    }
 }
 
 // =============================================================================
@@ -321,4 +256,40 @@ function UTSReplicationInfo GetRI ( PlayerReplicationInfo PRI )
 
 defaultproperties
 {
+      zzPI(0)=(zzRI=None,zzPID=0)
+      zzPI(1)=(zzRI=None,zzPID=0)
+      zzPI(2)=(zzRI=None,zzPID=0)
+      zzPI(3)=(zzRI=None,zzPID=0)
+      zzPI(4)=(zzRI=None,zzPID=0)
+      zzPI(5)=(zzRI=None,zzPID=0)
+      zzPI(6)=(zzRI=None,zzPID=0)
+      zzPI(7)=(zzRI=None,zzPID=0)
+      zzPI(8)=(zzRI=None,zzPID=0)
+      zzPI(9)=(zzRI=None,zzPID=0)
+      zzPI(10)=(zzRI=None,zzPID=0)
+      zzPI(11)=(zzRI=None,zzPID=0)
+      zzPI(12)=(zzRI=None,zzPID=0)
+      zzPI(13)=(zzRI=None,zzPID=0)
+      zzPI(14)=(zzRI=None,zzPID=0)
+      zzPI(15)=(zzRI=None,zzPID=0)
+      zzPI(16)=(zzRI=None,zzPID=0)
+      zzPI(17)=(zzRI=None,zzPID=0)
+      zzPI(18)=(zzRI=None,zzPID=0)
+      zzPI(19)=(zzRI=None,zzPID=0)
+      zzPI(20)=(zzRI=None,zzPID=0)
+      zzPI(21)=(zzRI=None,zzPID=0)
+      zzPI(22)=(zzRI=None,zzPID=0)
+      zzPI(23)=(zzRI=None,zzPID=0)
+      zzPI(24)=(zzRI=None,zzPID=0)
+      zzPI(25)=(zzRI=None,zzPID=0)
+      zzPI(26)=(zzRI=None,zzPID=0)
+      zzPI(27)=(zzRI=None,zzPID=0)
+      zzPI(28)=(zzRI=None,zzPID=0)
+      zzPI(29)=(zzRI=None,zzPID=0)
+      zzPI(30)=(zzRI=None,zzPID=0)
+      zzPI(31)=(zzRI=None,zzPID=0)
+      bNoTeamGame=False
+      CurrentID=0
+      bUTStatsRunning=False
+      bInsta=False
 }
