@@ -77,9 +77,8 @@ function LogStandardInfo()
    Log("###         by Azazel & AnthraX        ");
    Log("### ___________________________________");
    Log("###");
-   Log("### - Version   : "$zzVersion);
-   Log("### - Settings  : ");
-   Log("###    * UTGL Running     :"@bUTGLEnabled);
+   Log("### - Version      : "$zzVersion);
+   Log("### - UTGL Running :"@bUTGLEnabled);
    Log("### ___________________________________");
 
    LogEventString(GetTimeStamp()$Chr(9)$"info"$Chr(9)$"utglenabled"$Chr(9)$string(bUTGLEnabled));
@@ -162,7 +161,7 @@ function LogKill( int KillerID, int VictimID, string KillerWeaponName, string Vi
     // ===================================================================
 
     // ============================ SPREE CODE ===========================
-    LogSpree(zzKillerID,zzVictimID);
+    LogSpree (zzKillerID,zzVictimID);
     // ===================================================================
 
     // ============================ COMBO CODE ===========================
@@ -178,14 +177,16 @@ function LogKill( int KillerID, int VictimID, string KillerWeaponName, string Vi
     // ===================================================================
 }
 
-function LogSpree(int KillerID,int VictimID)
+function LogSpree (int KillerID,int VictimID)
 {
     local int i;
     local string spree;
 
     if (KillerID != 33)
       PI[KillerID].zzSpree++;
+
     i = PI[VictimID].zzSpree;
+    PI[VictimID].zzSpree = 0;
 
     if (i < 5) // No Spree
       return;
@@ -200,9 +201,7 @@ function LogSpree(int KillerID,int VictimID)
     else
       spree = "spree_god";
 
-    PI[VictimID].zzSpree = 0;
-
-    LogEventString(GetTimeStamp()$Chr(9)$"spree"$chr(9)$spree$chr(9)$VictimID);
+    LogEventString(GetTimeStamp()$Chr(9)$"spree"$chr(9)$spree$chr(9)$PI[VictimID].zzID);
 }
 
 function LogCombo (int KillerID, optional bool bEndGame,optional bool bDisconnect)
@@ -221,14 +220,14 @@ function LogCombo (int KillerID, optional bool bEndGame,optional bool bDisconnec
     if (zzNow - PI[KillerID].zzLastKill < 3.0)
     {
       if ((bEndGame || bDisconnect) && (PI[KillerID].zzCombo > 1))  // Combo was still going on when player disconnected
-        LogEventString(GetTimeStamp()$chr(9)$"spree"$chr(9)$zzComboCode[Clamp(PI[KillerID].zzCombo-2,0,3)]$chr(9)$KillerID);
+        LogEventString(GetTimeStamp()$chr(9)$"spree"$chr(9)$zzComboCode[Clamp(PI[KillerID].zzCombo-2,0,3)]$chr(9)$PI[KillerID].zzID);
       else
         PI[KillerID].zzCombo++;
     }
     else
     {
       if (PI[KillerID].zzCombo > 1)
-        LogEventString(GetTimeStamp()$chr(9)$"spree"$chr(9)$zzComboCode[Clamp(PI[KillerID].zzCombo-2,0,3)]$chr(9)$KillerID);
+        LogEventString(GetTimeStamp()$chr(9)$"spree"$chr(9)$zzComboCode[Clamp(PI[KillerID].zzCombo-2,0,3)]$chr(9)$PI[KillerID].zzID);
       PI[KillerID].zzCombo = 1;
     }
 
@@ -308,22 +307,18 @@ function LogSpecialEvent(string EventType, optional coerce string Arg1, optional
     local int i;
     local string event;
 
-    /*if (!bGameStarted)
-      return;
-
-    super.LogSpecialEvent(EventType,Arg1,Arg2,Arg3,Arg4);*/
-
-    Event = EventType;
-    if (Arg1 != "")
-        Event = Event$Chr(9)$Arg1;
-    if (Arg2 != "")
-        Event = Event$Chr(9)$Arg2;
-    if (Arg3 != "")
-        Event = Event$Chr(9)$Arg3;
-    if (Arg4 != "")
-        Event = Event$Chr(9)$Arg4;
-
-    LogEventString(GetTimeStamp()$Chr(9)$Event);
+    if (InStr(EventType,"transloc") != -1)
+    {
+        if (EventType=="translocate")
+        {
+            i = GetID(int(Arg1));
+            PI[i].bHasFlag = false;
+        }
+    }
+    else
+    {
+        super.LogSpecialEvent(EventType,Arg1,Arg2,Arg3,Arg4);
+    }
 
     if (!bGameStarted && !GameStarted())
         return;
@@ -335,12 +330,6 @@ function LogSpecialEvent(string EventType, optional coerce string Arg1, optional
         PI[i].bHasFlag = true;
     }
     else if (EventType=="flag_captured")
-    {
-        i = GetID(int(Arg1));
-
-        PI[i].bHasFlag = false;
-    }
-    else if (EventType=="translocate")
     {
         i = GetID(int(Arg1));
 
@@ -614,7 +603,7 @@ defaultproperties
       zzComboCode(2)=""
       zzComboCode(3)=""
       zzBuffer=""
-      zzVersion="beta 3"
+      zzVersion="beta 3a"
       zzGLTag=""
       zzEndTime=0.000000
       zzWarmupTime=0.000000
