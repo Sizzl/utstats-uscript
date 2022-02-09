@@ -1,8 +1,22 @@
-//-----------------------------------------------------------
-//  SmartASS - Cratos@gmx.at
-//  Modified July 2008 timo@utassault.net for UTA Pug matches
-//-----------------------------------------------------------
-class SmartAS_Mutator expands Mutator;
+// =============================================================================
+//  SmartASS
+// 
+//  Changelog:-
+//    May 2005 by cratos@gmx.at : Initial release to support match mode in
+//             LeagueAS, bringing additional context into UT Stats.
+//             Includes hammer jumps, launches and rocket launches, plus
+//             detection of suicide via keybind, and other special events.
+//   
+//    Jul 2005 by cratos@gmx.at : Added support for 'Saves' and 'assists'.
+//
+//    Jul 2008 by timo@utassault.net : Allow "manual" match code generation
+//             through remote setup for UTA PUG matches.
+//
+//    Feb 2022 by timo@utassault.net : Added multi-value hammer launch
+//             detection for lower/higher value launches.
+//
+// =============================================================================
+class SmartAS_Mutator expands Mutator config;
 
 var() config bool bEnabled;
 var() config bool bDebug;
@@ -18,7 +32,10 @@ var() config bool bPlayAssistSound;
 var() config string DebugName;
 var() config int MaxID;
 var() config bool bGenerateNewCode;
-
+var() config string HiValueHLSpots[32]; // AS-Map,Radius,Height;X,Y,Z;X,Y,Z;
+var() config string LoValueHLSpots[32]; // e.g. AS-Siege][,300,60;250,-250,25;
+var int MapSpots;
+var() config bool bSaved;
 
 var class<actor> MessageClass;
 
@@ -63,6 +80,11 @@ event PreBeginPlay()
 	MsgSpec = Level.Spawn(class'MsgSpec');
 	MsgSpec.SmartAS = self;
 
+	if (!bSaved)
+		StaticSaveConfig();
+
+	ConfigureTZs();
+
 	MessageClass = class<actor>(DynamicLoadObject("SmartAS-Message.SmartASMessage", class'class',true));
 	if (MessageClass==None) log ("SmartAS-Message is disabled");
 }
@@ -78,7 +100,7 @@ event Timer()
 	}
 }
 
-// Endgame Trigger: LeageuAS Teamscore is updated
+// Endgame Trigger: LeagueAS Teamscore is updated
 event Trigger(Actor Other, Pawn EventInstigator)
 {
 	if (Other.IsA('Assault'))
@@ -96,6 +118,88 @@ function bool HandleEndGame()
 	return super.HandleEndGame();
 }
 
+// =============================================================================
+// Trigger Zone support for defining areas of interest
+//  Currently used to define high or low value Hammer Launch zones
+// =============================================================================
+function ConfigureTZs()
+{
+	local string MapName;
+	local string TZRaw;
+	local int i;
+
+	MapName = Left(Self, InStr(Self, "."));
+	for (i = 0; i < MapSpots; i++)
+	{
+		if (Len(HiValueHLSpots[i]) > 0 && InMap(MapName,HiValueHLSpots[i],","))
+		{
+			TZRaw = StripMap(MapName,HiValueHLSpots[i]);
+			UnpackTZData(TZRaw, 1);
+		}
+		if (Len(LoValueHLSpots[i]) > 0 && InMap(MapName,LoValueHLSpots[i],","))
+		{
+			TZRaw = StripMap(MapName,LoValueHLSpots[i]);
+			UnpackTZData(TZRaw,-1);
+		}
+	}
+}
+
+function bool InMap(string MapName, string Test, optional string AdditionalData)
+{
+	return bool(Left(Test,Len(MapName)+Len(AdditionalData)) ~= MapName$AdditionalData);
+}
+
+function string StripMap(string MapName, string Data, optional string AdditionalData)
+{
+	return Right(Data,Len(Data)-(Len(MapName)+Len(AdditionalData)));
+}
+
+function UnpackTZData(string LocationData, int Rating)
+{
+	local int i;
+	local string TZCollision;
+	local string TZData[16]; // Index 0 is Collision (Radius, Height), Indexes 1-15 are Vectors
+	local vector TZVector;
+
+	ParseToArray(LocationData,";",TZData);
+	TZCollision = "0,0";
+	if (Len(TZData[0]) > 2)
+		TZCollision = TZData[0];
+	for (i = 1; i < 16; i++)
+	{
+		TZVector = vect(0,0,0);
+		if (Len(TZData[i]) > 4)
+		{
+			TZVector = vector(TZData[i]);
+			if (TZVector != vect(0,0,0))
+				SpawnHLTZ(TZVector,TZCollision,Rating);
+		}
+	}
+}
+
+function SpawnHLTZ(vector Location, string TZC, int TZR)
+{
+	local SmartAS_TriggerZone TZ;
+	local int R, H, i;
+
+	TZ = Spawn(class'SmartAS_TriggerZone',Self, , Location);
+	TZ.bHidden = true;
+    TZ.SetCollision(true,false,false);
+    R = 50;  // default radius
+	H = 50;  // default height
+	i = InStr(TZC, ",");
+	if (i >= 0)
+	{
+		R = int(Left(TZC, i));
+		H = int(Mid(TZC, i+1));
+	}
+    TZ.SetCollisionSize(R,H);
+    TZ.Rating = TZR;
+}
+
+// =============================================================================
+// LogGameStart() and LogGameEnd() injection into Stats Logs
+// =============================================================================
 
 function LogGameEnd()
 {
@@ -168,7 +272,7 @@ function LogGameStart()
 		gRedTeam = RedTeam;
 		gBlueTeam = BlueTeam;
 		MatchCode = GenerateAssaultMatchCode();
-		bGenerateNewCode = False;
+		bGenerateNewCode = False; // Added to allow manual triggering of GenerateAssaultMatchCode()
 		SaveConfig();
 	}
 	LogSpecialEvent("ass_matchcode", MatchCode);
@@ -178,7 +282,10 @@ function LogGameStart()
 	LogSpecialEvent("game","AirControl",Assault(Level.Game).AirControl);
 }
 
-
+// =============================================================================
+// GenerateAssaultMatchCode() - creates a random string of characters which
+//  are used to tie multiple rounds of Assault maps together as a "match".
+// =============================================================================
 function string GenerateAssaultMatchCode()
 {
 	local int i;
@@ -205,9 +312,16 @@ event Tick (float Deltatime)
 	ticks++;
 }
 
+function Mutate(string MutateString, PlayerPawn Sender)
+{
+	if (MutateString ~= "smartas") Sender.ClientMessage("SmartAS Version:"@SmartASVersion);
+	else super.Mutate(MutateString, Sender);
+}
+
 function MutatorTakeDamage(out int ActualDamage, Pawn Victim, Pawn InstigatedBy, out Vector HitLocation, out Vector Momentum, name DamageType)
 {
-	local int PID;
+	local int PID,HLRating;
+	local SmartAS_TriggerZone TZ;
 
 	// Super
 	if (NextDamageMutator != None)
@@ -244,8 +358,31 @@ function MutatorTakeDamage(out int ActualDamage, Pawn Victim, Pawn InstigatedBy,
 					Victim.Health > Actualdamage										// he survives it
 				)
 			{
-				if (bDebug) log("-->ass_h_launch!");
-				LogSpecialEvent("ass_h_launch",InstigatedBy.PlayerReplicationInfo.PlayerID, Victim.PlayerReplicationInfo.PlayerID);
+				HLRating = 0;
+				foreach InstigatedBy.TouchingActors(class'SmartAS_TriggerZone', TZ)
+				{
+					// Higher priority overrides lower priority, except for no pri.
+					if (TZ.Rating > 0)
+						HLRating = TZ.Rating;
+					else if (HLRating == 0)
+						HLRating = TZ.Rating;
+				}
+				if (HLRating > 0)
+				{
+					if (bDebug) log("-->ass_h_launch_hi!");
+					LogSpecialEvent("ass_h_launch_hi",InstigatedBy.PlayerReplicationInfo.PlayerID, Victim.PlayerReplicationInfo.PlayerID);	
+				}
+				else if (HLRating < 0)
+				{
+					if (bDebug) log("-->ass_h_launch_lo!");
+					LogSpecialEvent("ass_h_launch_lo",InstigatedBy.PlayerReplicationInfo.PlayerID, Victim.PlayerReplicationInfo.PlayerID);	
+				}
+				else
+				{
+					if (bDebug) log("-->ass_h_launch!");
+					LogSpecialEvent("ass_h_launch",InstigatedBy.PlayerReplicationInfo.PlayerID, Victim.PlayerReplicationInfo.PlayerID);	
+				}
+				
 			}
 		}
 	}
@@ -346,9 +483,6 @@ function CheckTeamChange(Pawn Killed)
 
 function ScoreKill(Pawn Killer, Pawn Other)
 {
-	local int PID;
-	local FortStandard F, F2;
-
 	if (Killer!=None && Killer.bIsPlayer && Other!=None && Other.bIsPlayer && Killer!=Other)
 	{
 		KillLog[KillLogPointerNextFree].Killer = Killer;
@@ -508,9 +642,9 @@ function bool HasSpawnProtectionActive(Pawn P)
 }
 
 
-//************************************************************************************************
-//NearestObjDist: Returns the distance to the nearest Obj
-//************************************************************************************************
+// =============================================================================
+// NearestObjDist - Returns the distance to the nearest Obj
+// =============================================================================
 function float NearestObjDist(Pawn Sender, out FortStandard NearestFort, out FortStandard NearestFort2)
 {
 	local FortStandard F;
@@ -540,9 +674,9 @@ function float NearestObjDist(Pawn Sender, out FortStandard NearestFort, out For
 	return DistToNearestFort;
 }
 
-//************************************************************************************************
-//DistanceFrom: Returns the distance between 2 actors.
-//************************************************************************************************
+// =============================================================================
+// DistanceFrom - Returns the distance between 2 actors
+// =============================================================================
 function float DistanceFrom(Actor P1, Actor P2)
 {
 
@@ -556,7 +690,9 @@ function float DistanceFrom(Actor P1, Actor P2)
 
 	return ADistance;
 }
-
+// =============================================================================
+// DistanceFromLocation - Returns the distance an actor and a vector location
+// =============================================================================
 function float DistanceFromLocation(Actor P1, vector Location)
 {
  	local float DistanceX, DistanceY, DistanceZ, ADistance;
@@ -570,6 +706,9 @@ function float DistanceFromLocation(Actor P1, vector Location)
 	return ADistance;
 }
 
+// =============================================================================
+// GetFortName
+// =============================================================================
 function string GetFortName(FortStandard F)
 {
 	if ((F.FortName == "Assault Target") || (F.FortName == "") || (F.FortName == " "))
@@ -601,21 +740,44 @@ function LogSpecialEventString(string EventType, optional coerce string Arg1, op
 		Event = Event$Chr(9)$Arg4;
 	Level.Game.LocalLog.LogEventString(Level.Game.LocalLog.GetTimeStamp()$Chr(9)$Event);
 }
-
-function Mutate(string MutateString, PlayerPawn Sender)
+// =============================================================================
+// ParseToArray - Splits a string by its delimiter into an array (max number of
+//  items are defined in the function as an output. This must match the target
+//  variable length.
+// =============================================================================
+function ParseToArray(string InputString, string Delimiter, out string SplitOutput[16])
 {
-	local float f;
-	if (MutateString ~= "smartas") Sender.ClientMessage("SmartAS Version:"@SmartASVersion$", current match code:"@MatchCode);
-	else super.Mutate(MutateString, Sender);
+	local int i;
+	local int row;
+
+	i = InStr(InputString, Delimiter);
+	while (i >= 0)
+	{
+		SplitOutput[row] = Left(InputString, i);
+		InputString = Mid(InputString, i+1);
+		i = InStr(InputString, Delimiter);
+		row++;
+	}
+	if (row < 16)
+		SplitOutput[row] = InputString;
+
+	if (row<(16-1))
+		SplitOutput[row+1] = "";
 }
+
+
 
 defaultproperties
 {
      bEnabled=True
      gRedTeam="RED"
      gBlueTeam="BLUE"
-     SmartASVersion="1.01k"
+     SmartASVersion="1.01m"
      AssistArea=1000
      AssistTimeOut=5
      DebugName="debug"
+     bGenerateNewCode=False
+     MapSpots=32 // align with defined array counts
+     HiValueHLSpots(0)="AS-Siege][,140,260;0,0,500;" // e.g. 4/5-hammer launching from middle tower
+     LoValueHLSpots(0)="AS-Siege][,300,60;250,-250,25;-250,-250,25;" // e.g. hammer launching into middle tower
 }

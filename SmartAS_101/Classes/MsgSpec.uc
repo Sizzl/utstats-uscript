@@ -23,7 +23,6 @@ var FortInfo zzFI[16];
 function zzSetup()
 {
 	local FortStandard zzFS;
-	local string zzFortName;
 
 	zzNumForts = 0;
 
