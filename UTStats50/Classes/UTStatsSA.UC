@@ -4,7 +4,7 @@
 //                        # #  #  ###  #  # #  #  ###
 //                        # #  #    #  #  ###  #    #
 //                        ###  #  ###  #  # #  #  ###
-//                                 Beta 4.2a
+//                                   v5.0
 // =============================================================================
 // UTStats Team:
 //     * Azazel (Main PHP Coder)
@@ -12,14 +12,14 @@
 //     * AnthraX (Unrealscript Coder)
 // UTA Team:
 //     * Cratos (Unrealscript Coder)
-//     * Timo (PHP Coder)
+//     * Sizzl (aka Timo/Weirdo) (Unrealscript Coder, PHP Coder)
 //     * brajan (PHP Coder)
 // UTStats Forum:
 //     * http://www.unrealadmin.org/forums/forumdisplay.php?f=173
 // UTA Forum:
 //     * https://forums.utassault.net
 //
-// Released under the Unreal Open MOD License (included in zip package)
+// Released under the Unreal Open MOD License (included in code repository)
 // =============================================================================
 
 class UTStatsSA extends Info;
@@ -37,7 +37,7 @@ function PreBeginPlay ()
   Super.PreBeginPlay();
   if (  !Class'UTStats'.Default.bEnabled )
   {
-    Log("UTStats is Disabled!");
+    Log("### UTStats is Disabled!",'UTStats');
     Destroy();
     return;
   }
@@ -57,14 +57,14 @@ function PostBeginPlay ()
 
   if (  !Class'UTStats'.Default.bEnabled )
   {
-    Log("UTStats is Disabled!");
+    Log("### UTStats is Disabled!",'UTStats');
     Destroy();
     return;
   }
   UTSDM = Level.Spawn(Class'UTSDamageMut');
   if ( UTSDM == None )
   {
-    Log("### ERROR: Spawning UTSDamageMut failed!");
+    Log("### ERROR: Spawning UTSDamageMut failed!",'UTStats');
     return;
   }
   Level.Game.BaseMutator.AddMutator(UTSDM);
@@ -72,6 +72,8 @@ function PostBeginPlay ()
   LocalLog = Spawn(Class'UTStats');
   LocalLog.bWorld = False;
   LocalLog.UTSDM = UTSDM;
+  UTSDM.zzLogger = LocalLog;
+  
   LocalLog.StartLog();
   LocalLog.LogStandardInfo();
   LocalLog.LogServerInfo();

@@ -23,7 +23,6 @@ var FortInfo zzFI[16];
 function zzSetup ()
 {
   local FortStandard zzFS;
-  local string zzFortName;
 
   zzNumForts = 0;
   zzLogger.LogEventString(zzLogger.GetTimeStamp() $ Chr(9) $ "assault_timelimit" $ Chr(9) $ string(zzAssault.TimeLimit));

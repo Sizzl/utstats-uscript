@@ -2,14 +2,14 @@
 Logs game events in sql format for stat collection
 Copyright (C) 2004/2005 azazel, )°DoE°(-AnthraX and toa
 
-UTAssault.net modifications by Cratos, brajan and Sizzl (Timo/Weirdo) (2005-2008)
+UTAssault.net modifications by Cratos, brajan and Sizzl (Timo/Weirdo) (2005-2008, 2020-2022)
 
 This program is free software; you can redistribute and/or modify it under the terms of the Open Unreal Mod License.
-See license for more information.
+See [LICENSE](LICENSE.md) for more information.
 
 - - - -
 
-## Version 4.2a beta ##
+## Version 5 ##
 Fork of original UA code for UTAssault.net League Games and PUGs
 
 _Original release notes adapted for GitHub, with ChangeLog observations added_
@@ -17,6 +17,17 @@ _Original release notes adapted for GitHub, with ChangeLog observations added_
 Original release history for v4.2 and below can be found at https://unrealadmin.org/forums/forumdisplay.php?f=174
 
 ## ChangeLog ##
+
+### v5 ###
+SmartAS 1.01m (2022):
+ - Added area triggers for zones deemed as high-value or low-value for hammer launches
+
+UT Stats:
+ - Introduced Inventory damage tracking (handled before MutatorTakeDamage), requires package to be client download
+ - Moved SpawnNotify projectile and combo tracking out to Client Simulated
+ - Significant debug logging support added
+ - "Kill detail" per-player damage attribution tracking added
+ - Added private IP checking and lookup via AWS CheckIP API to handle Cloud VM Public IP lookup
 
 ### v4.2a beta  ###
 SmartAS 1.01k (2008) - enhanced support for UTA Pug games:

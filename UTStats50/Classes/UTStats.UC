@@ -12,8 +12,9 @@ struct PlayerInfo
   var bool bHasFlag;
   var string zzLogin,zzIP;
 };
-//var config bool bUTGLEnabled;
-var config bool bEnabled;
+var() config bool bEnabled;
+var() config bool bDebug;
+var() config bool bForceIPCheck;
 var bool bFirstBlood;
 var bool bGameStarted;
 var string zzComboCode[4];
@@ -25,24 +26,23 @@ var float zzWarmupTime;
 var int CurrentID;
 var int zzPHPos;
 var UTSDamageMut UTSDM;
-var PlayerInfo Pi[33];
+var PlayerInfo PInfo[33];
 var UTStatsAH UTSAH;
+var UTStatsHTTPClient UTSHTTP;
 
 function LogStandardInfo ()
 {
-  local UTStatsHTTPClient UTSHTTP;
   local int i;
   local Mutator zzMutator;
   local bool bInsta;
-  // Tag our actor to receive UTGL calls
-  //Tag='UTGLCatcher'; // Removed for 'a' and 'b' versions
+
   // Setup the buffer
   zzBuffer = "";
 
   // Setup the Pi structs
   for (i=0;i<32;++i)
   {
-    Pi[i].zzID = -1;
+    PInfo[i].zzID = -1;
   }
 
   // Setup the zzCombo array
@@ -51,23 +51,17 @@ function LogStandardInfo ()
   zzComboCode[2] = "spree_ult";
   zzComboCode[3] = "spree_mon";
 
-  // Check the serveractors list
-  //zzServerActors = Level.ConsoleCommand("get Engine.GameEngine ServerActors");
-  //if (InStr(CAPS(zzServerActors),"GLACTOR") != -1)
-  //  bUTGLEnabled = true;
-
-  Log("### ___________________________________");
-  Log("###                                    ");
-  Log("###     # # ### ### ###  #  ### ###    ");
-  Log("###     # #  #  #    #  # #  #  #      ");
-  Log("###     # #  #  ###  #  # #  #  ###    ");
-  Log("###     # #  #    #  #  ###  #    #    ");
-  Log("###     ###  #  ###  #  # #  #  ###    ");
-  Log("### ___________________________________");
-  Log("###");
-  Log("### - Version      : " $ zzVersion);
-  //Log("### - UTGL Running :"@bUTGLEnabled);
-  Log("### ___________________________________");
+  Log("### ___________________________________",'UTStats');
+  Log("###                                    ",'UTStats');
+  Log("###     # # ### ### ###  #  ### ###    ",'UTStats');
+  Log("###     # #  #  #    #  # #  #  #      ",'UTStats');
+  Log("###     # #  #  ###  #  # #  #  ###    ",'UTStats');
+  Log("###     # #  #    #  #  ###  #    #    ",'UTStats');
+  Log("###     ###  #  ###  #  # #  #  ###    ",'UTStats');
+  Log("### ___________________________________",'UTStats');
+  Log("###",'UTStats');
+  Log("### - Version : " $ zzVersion,'UTStats');
+  Log("### ___________________________________",'UTStats');
   LogEventString(GetTimeStamp() $ Chr(9) $ "info" $ Chr(9) $ "Log_Standard" $ Chr(9) $ "UTStats");
   LogEventString(GetTimeStamp() $ Chr(9) $ "info" $ Chr(9) $ "Log_Version" $ Chr(9) $ zzVersion);
   LogEventString(GetTimeStamp() $ Chr(9) $ "info" $ Chr(9) $ "Game_Name" $ Chr(9) $ GameName);
@@ -82,7 +76,6 @@ function LogStandardInfo ()
       LogEventString(GetTimeStamp() $ Chr(9) $ "info" $ Chr(9) $ "Server_Public" $ Chr(9) $ "0");
     }
   }
-  //LogEventString(GetTimeStamp()$Chr(9)$"info"$Chr(9)$"utglenabled"$Chr(9)$string(bUTGLEnabled));
   LogEventString(GetTimeStamp() $ Chr(9) $ "info" $ Chr(9) $ "utglenabled" $ Chr(9) $ string(False));
   // Check for insta
   foreach AllActors(class'Mutator',zzMutator)
@@ -94,46 +87,48 @@ function LogStandardInfo ()
   UTSDM.bInsta = bInsta;
 
   LogEventString(GetTimeStamp() $ Chr(9) $ "game" $ Chr(9) $ "insta" $ Chr(9) $ string(bInsta));
-
-  UTSHTTP = Spawn(Class'UTStatsHTTPClient');
-  //UTSHTTP.Browse("212.42.16.16","/myip.php",80,10);
-  LogIP(IPOnly(UTSHTTP.GetIP()));
-  UTSHTTP.Destroy();
+  if (UTSHTTP == None)
+    UTSHTTP = Spawn(Class'UTStatsHTTPClient',self);
+  UTSHTTP.UTS = self;
+  UTSHTTP.bDebug = bDebug;
+  UTSHTTP.bForceCheck = bForceIPCheck;
+  UTSHTTP.GetServerIP();
 }
 
 function LogIP (string zzMyIP)
 {
   LogEventString(GetTimeStamp() $ Chr(9) $ "info" $ Chr(9) $ "True_Server_IP" $ Chr(9) $ zzMyIP);
+  if (UTSHTTP != None)
+    UTSHTTP.Destroy();
 }
-
 // =============================================================================
 // LogPlayerInfo ~ Called right after a player connects
 // =============================================================================
 function LogPlayerInfo (Pawn Player)
 {
-  local int i,j;
+  local int i;
 
   Super.LogPlayerInfo(Player);
 
   // Setup a playerinfo struct for this player
   for (i=0;i<32;++i)
   {
-    if (Pi[i].zzID == -1) // This slot is free
+    if (PInfo[i].zzID == -1) // This slot is free
       break;
   }
 
-  Pi[i].zzID = Player.PlayerReplicationInfo.PlayerID;
-  Pi[i].zzPawn = Player;
-  Pi[i].zzSpree = 0;
-  Pi[i].zzCombo = 1;
-  Pi[i].zzKills = 0;
-  Pi[i].zzDeaths = 0;
-  Pi[i].zzSuicides = 0;
-  Pi[i].zzTeamKills = 0;
-  Pi[i].zzLastKill = 0.0;
-  Pi[i].zzEndTime = 0.0;
-  Pi[i].zzJoinTime = Level.TimeSeconds;
-  Pi[i].bHasFlag = False;
+  PInfo[i].zzID = Player.PlayerReplicationInfo.PlayerID;
+  PInfo[i].zzPawn = Player;
+  PInfo[i].zzSpree = 0;
+  PInfo[i].zzCombo = 1;
+  PInfo[i].zzKills = 0;
+  PInfo[i].zzDeaths = 0;
+  PInfo[i].zzSuicides = 0;
+  PInfo[i].zzTeamKills = 0;
+  PInfo[i].zzLastKill = 0.0;
+  PInfo[i].zzEndTime = 0.0;
+  PInfo[i].zzJoinTime = Level.TimeSeconds;
+  PInfo[i].bHasFlag = False;
 }
 
 // =============================================================================
@@ -153,8 +148,8 @@ function LogKill (int KillerID, int VictimID, string KillerWeaponName, string Vi
 
   LogEventString(GetTimeStamp() $ Chr(9) $ "kill" $ Chr(9) $ string(KillerID) $ Chr(9) $ KillerWeaponName $ Chr(9) $ string(VictimID) $ Chr(9) $ VictimWeaponName $ Chr(9) $ string(DamageType));
   
-  Pi[zzKillerID].zzKills++;
-  Pi[zzVictimID].zzDeaths++;
+  PInfo[zzKillerID].zzKills++;
+  PInfo[zzVictimID].zzDeaths++;
   
   if ( !bFirstBlood )
   {
@@ -165,11 +160,28 @@ function LogKill (int KillerID, int VictimID, string KillerWeaponName, string Vi
   LogSpree(zzKillerID,zzVictimID);
   LogCombo(zzKillerID);
   
-  if ( Pi[zzVictimID].bHasFlag )
+  if ( PInfo[zzVictimID].bHasFlag )
   {
     LogEventString(GetTimeStamp() $ Chr(9) $ "flag_kill" $ Chr(9) $ string(KillerID));
-    Pi[zzVictimID].bHasFlag = False;
+    PInfo[zzVictimID].bHasFlag = False;
   }
+  
+  if (UTSDM != None)
+  {
+    // Perform a backwards call to reach LogKillDetail
+    UTSDM.GetAttributableDamage(VictimID);
+  }
+}
+// =============================================================================
+// LogKillDetail ~ Calls backwards from UTSReplicationInfo > UTSDamageMut > this
+// =============================================================================
+function LogKillDetail (int VictimPID, int InstigatorPID, string zzInstigatorWeapon, int zzInstigatorDamage, float zzLastWeaponHit, float zzLastHit, int zzVictimArmour, int zzVictimHealth)
+{
+  if (  !bGameStarted &&  !GameStarted() )
+  {
+    return;
+  }
+  LogEventString(GetTimeStamp() $ Chr(9) $ "damage_tracker" $ Chr(9) $ string(VictimPID) $ Chr(9) $ string(InstigatorPID) $ Chr(9) $ zzInstigatorWeapon $ Chr(9) $ string(zzInstigatorDamage) $ Chr(9) $ string(zzLastWeaponHit) $ Chr(9) $ string(zzLastHit) $ Chr(9) $ string(zzVictimArmour) $ Chr(9) $ string(zzVictimHealth));
 }
 
 // =============================================================================
@@ -185,10 +197,10 @@ function LogSpree (int KillerID, int VictimID)
 
   if ( KillerID != 33 )
   {
-    Pi[KillerID].zzSpree++;
+    PInfo[KillerID].zzSpree++;
   }
-  i = Pi[VictimID].zzSpree;
-  Pi[VictimID].zzSpree = 0;
+  i = PInfo[VictimID].zzSpree;
+  PInfo[VictimID].zzSpree = 0;
 
   if (i < 5) // No Spree
     return;
@@ -203,7 +215,7 @@ function LogSpree (int KillerID, int VictimID)
    else
     spree = "spree_god";
 
-  LogEventString(GetTimeStamp() $ Chr(9) $ "spree" $ Chr(9) $ Spree $ Chr(9) $ string(Pi[VictimID].zzID));
+  LogEventString(GetTimeStamp() $ Chr(9) $ "spree" $ Chr(9) $ Spree $ Chr(9) $ string(PInfo[VictimID].zzID));
 }
 
 // =============================================================================
@@ -213,31 +225,29 @@ function LogSpree (int KillerID, int VictimID)
 function LogCombo (int KillerID, optional bool bEndGame,optional bool bDisconnect)
 {
    local float zzNow;
-   local int i;
-   local string spree;
 
    if (bEndGame)
     zzNow = zzEndTime;
    else if (bDisconnect)
-    zzNow = Pi[KillerID].zzEndTime;
+    zzNow = PInfo[KillerID].zzEndTime;
    else
     zzNow = Level.TimeSeconds;
 
-   if (zzNow - Pi[KillerID].zzLastKill < 3.0)
+   if (zzNow - PInfo[KillerID].zzLastKill < 3.0)
    {
-    if ((bEndGame || bDisconnect) && (Pi[KillerID].zzCombo > 1))  // Combo was still going on when player disconnected
-      LogEventString(GetTimeStamp()$chr(9)$"spree"$chr(9)$zzComboCode[Clamp(Pi[KillerID].zzCombo-2,0,3)]$chr(9)$Pi[KillerID].zzID);
+    if ((bEndGame || bDisconnect) && (PInfo[KillerID].zzCombo > 1))  // Combo was still going on when player disconnected
+      LogEventString(GetTimeStamp()$chr(9)$"spree"$chr(9)$zzComboCode[Clamp(PInfo[KillerID].zzCombo-2,0,3)]$chr(9)$PInfo[KillerID].zzID);
     else
-      Pi[KillerID].zzCombo++;
+      PInfo[KillerID].zzCombo++;
    }
    else
    {
-    if (Pi[KillerID].zzCombo > 1)
-      LogEventString(GetTimeStamp()$chr(9)$"spree"$chr(9)$zzComboCode[Clamp(Pi[KillerID].zzCombo-2,0,3)]$chr(9)$Pi[KillerID].zzID);
-    Pi[KillerID].zzCombo = 1;
+    if (PInfo[KillerID].zzCombo > 1)
+      LogEventString(GetTimeStamp()$chr(9)$"spree"$chr(9)$zzComboCode[Clamp(PInfo[KillerID].zzCombo-2,0,3)]$chr(9)$PInfo[KillerID].zzID);
+    PInfo[KillerID].zzCombo = 1;
    }
 
-   Pi[KillerID].zzLastKill = zzNow;
+   PInfo[KillerID].zzLastKill = zzNow;
 }
 
 // =============================================================================
@@ -260,13 +270,18 @@ function LogTeamKill( int KillerID, int VictimID, string KillerWeaponName, strin
   zzKillerID = GetID(KillerID);
   zzVictimID = GetID(VictimID);
 
-  Pi[zzKillerID].zzTeamKills++;
-  Pi[zzVictimID].zzDeaths++;
+  PInfo[zzKillerID].zzTeamKills++;
+  PInfo[zzVictimID].zzDeaths++;
 
   super.LogTeamKill(KillerID,VictimID,KillerWeaponName,VictimWeaponName,DamageType);
 
-  if (Pi[zzVictimID].bHasFlag)
-    Pi[zzVictimID].bHasFlag = false;
+  if (PInfo[zzVictimID].bHasFlag)
+    PInfo[zzVictimID].bHasFlag = false;
+
+  if (UTSDM != None)
+  {
+    UTSDM.GetAttributableDamage(VictimID);
+  }
 }
 
 // =============================================================================
@@ -281,12 +296,17 @@ function LogSuicide (Pawn Killed, name DamageType, Pawn Instigator)
 
   zzKilled = GetID(Killed.PlayerReplicationInfo.PlayerID);
 
-  Pi[zzKilled].zzSuicides++;
+  PInfo[zzKilled].zzSuicides++;
 
   super.LogSuicide(Killed,DamageType,Instigator);
 
-  if (Pi[zzKilled].bHasFlag)
-    Pi[zzKilled].bHasFlag = false;
+  if (PInfo[zzKilled].bHasFlag)
+    PInfo[zzKilled].bHasFlag = false;
+
+  if (UTSDM != None)
+  {
+    UTSDM.GetAttributableDamage(zzKilled);
+  }
 }
 
 // =============================================================================
@@ -320,7 +340,7 @@ function LogPlayerDisconnect (Pawn Player)
   
   LogEventString(GetTimeStamp() $ Chr(9) $ "player" $ Chr(9) $ "Disconnect" $ Chr(9) $ string(Player.PlayerReplicationInfo.PlayerID));
   
-  Pi[i].zzEndTime = Level.TimeSeconds;
+  PInfo[i].zzEndTime = Level.TimeSeconds;
   
   if (  !bGameStarted &&  !GameStarted() )
   {
@@ -329,10 +349,15 @@ function LogPlayerDisconnect (Pawn Player)
   
   LogSpree(33,i);
   LogCombo(i,,True);
+
+  if (UTSDM != None)
+  {
+    UTSDM.GetAttributableDamage(i);
+  }
   
   AddToBuffer(i);
   
-  Pi[i].zzID = -1;
+  PInfo[i].zzID = -1;
 }
 // =============================================================================
 // LogSpecialEvent ~ Any gametype-specific event goes trough this function
@@ -342,14 +367,13 @@ function LogPlayerDisconnect (Pawn Player)
 function LogSpecialEvent (string EventType, optional coerce string Arg1, optional coerce string Arg2, optional coerce string Arg3, optional coerce string Arg4)
 {
   local int i;
-  local string Event;
 
   if ( (InStr(EventType,"transloc") != -1) || (InStr(EventType,"dom_") != -1) && (Level.Game.NumPlayers == 0) )
   {
     if ( EventType == "translocate" )
     {
       i = GetID(int(Arg1));
-      Pi[i].bHasFlag = False;
+      PInfo[i].bHasFlag = False;
     }
   } else {
     Super.LogSpecialEvent(EventType,Arg1,Arg2,Arg3,Arg4);
@@ -362,13 +386,13 @@ function LogSpecialEvent (string EventType, optional coerce string Arg1, optiona
   {
     i = GetID(int(Arg1));
 
-    Pi[i].bHasFlag = true;
+    PInfo[i].bHasFlag = true;
   }
   else if (EventType=="flag_captured")
   {
     i = GetID(int(Arg1));
 
-    Pi[i].bHasFlag = false;
+    PInfo[i].bHasFlag = false;
   }
 }
 // =============================================================================
@@ -397,8 +421,6 @@ function Tick (float DeltaTime)
 function SetIP (Pawn Player)
 {
   local string zzIP;
-  local int i,j;
-  local bool bReconnected;
 
   if ( Player.IsA('PlayerPawn') )
   {
@@ -449,12 +471,12 @@ function LogGameEnd (string Reason)
 
    for (i=0;i<32;++i)
    {
-     if (Pi[i].zzID != -1) // Player is still on the server
+     if (PInfo[i].zzID != -1) // Player is still on the server
      {
       LogSpree(33,i);
       LogCombo(i,true);
       AddToBuffer(i);
-      Pi[i].zzID = -1;
+      PInfo[i].zzID = -1;
      }
    }
 
@@ -474,60 +496,60 @@ function AddToBuffer (int zzPlayerID)
   local UTSReplicationInfo zzRI;
   local int i;
 
-  if ( Pi[zzPlayerID].zzPawn == None )
+  if ( PInfo[zzPlayerID].zzPawn == None )
   {
     return;
   }
   
-  zzRI = UTSDM.GetRI(Pi[zzPlayerID].zzPawn.PlayerReplicationInfo);
+  zzRI = UTSDM.GetRI(PInfo[zzPlayerID].zzPawn.PlayerReplicationInfo);
   
   if ( zzRI == None )
   {
     return;
   }
 
-  zzAccuracy = UTSDM.GetAccuracy(PI[zzPlayerID].zzPawn.PlayerReplicationInfo);
+  zzAccuracy = UTSDM.GetAccuracy(PInfo[zzPlayerID].zzPawn.PlayerReplicationInfo);
 
-  zzTimeOnServer = Min(Level.TimeSeconds-PI[zzPlayerID].zzJoinTime,Level.TimeSeconds-zzWarmupTime);
+  zzTimeOnServer = Min(Level.TimeSeconds-PInfo[zzPlayerID].zzJoinTime,Level.TimeSeconds-zzWarmupTime);
 
-  if ( Pi[zzPlayerID].zzDeaths != 0 )
+  if ( PInfo[zzPlayerID].zzDeaths != 0 )
   {
-    zzTTL = zzTimeOnServer / Pi[zzPlayerID].zzDeaths;
+    zzTTL = zzTimeOnServer / PInfo[zzPlayerID].zzDeaths;
   }
   else
   {
     zzTTL = zzTimeOnServer;  
   }
   
-  if ((PI[zzPlayerID].zzKills+PI[zzPlayerID].zzDeaths+PI[zzPlayerID].zzSuicides+PI[zzPlayerID].zzTeamKills) == 0)
+  if ((PInfo[zzPlayerID].zzKills+PInfo[zzPlayerID].zzDeaths+PInfo[zzPlayerID].zzSuicides+PInfo[zzPlayerID].zzTeamKills) == 0)
   {
     zzEfficiency = 0.0;
   }
   else
   {
-    zzEfficiency = float(PI[zzPlayerID].zzKills)/float(PI[zzPlayerID].zzKills+PI[zzPlayerID].zzDeaths+PI[zzPlayerID].zzSuicides+PI[zzPlayerID].zzTeamKills)*100.0;
+    zzEfficiency = float(PInfo[zzPlayerID].zzKills)/float(PInfo[zzPlayerID].zzKills+PInfo[zzPlayerID].zzDeaths+PInfo[zzPlayerID].zzSuicides+PInfo[zzPlayerID].zzTeamKills)*100.0;
   }
   
 
-  BufferLog("stat_player","accuracy",PI[zzPlayerID].zzID,string(zzAccuracy));
-  BufferLog("stat_player","score",PI[zzPlayerID].zzID,string(int(PI[zzPlayerID].zzPawn.PlayerReplicationInfo.Score)));
-  BufferLog("stat_player","frags",PI[zzPlayerID].zzID,string(PI[zzPlayerID].zzKills - PI[zzPlayerID].zzSuicides));
-  BufferLog("stat_player","kills",PI[zzPlayerID].zzID,string(PI[zzPlayerID].zzKills));
-  BufferLog("stat_player","deaths",PI[zzPlayerID].zzID,string(PI[zzPlayerID].zzDeaths));
-  BufferLog("stat_player","suicides",PI[zzPlayerID].zzID,string(PI[zzPlayerID].zzSuicides));
-  BufferLog("stat_player","teamkills",PI[zzPlayerID].zzID,string(PI[zzPlayerID].zzTeamKills));
-  BufferLog("stat_player","efficiency",PI[zzPlayerID].zzID,string(zzEfficiency));
-  BufferLog("stat_player","time_on_server",PI[zzPlayerID].zzID,string(Level.TimeSeconds-PI[zzPlayerID].zzJoinTime));
-  BufferLog("stat_player","ttl",PI[zzPlayerID].zzID,string(zzTTL));
+  BufferLog("stat_player","accuracy",PInfo[zzPlayerID].zzID,string(zzAccuracy));
+  BufferLog("stat_player","score",PInfo[zzPlayerID].zzID,string(int(PInfo[zzPlayerID].zzPawn.PlayerReplicationInfo.Score)));
+  BufferLog("stat_player","frags",PInfo[zzPlayerID].zzID,string(PInfo[zzPlayerID].zzKills - PInfo[zzPlayerID].zzSuicides));
+  BufferLog("stat_player","kills",PInfo[zzPlayerID].zzID,string(PInfo[zzPlayerID].zzKills));
+  BufferLog("stat_player","deaths",PInfo[zzPlayerID].zzID,string(PInfo[zzPlayerID].zzDeaths));
+  BufferLog("stat_player","suicides",PInfo[zzPlayerID].zzID,string(PInfo[zzPlayerID].zzSuicides));
+  BufferLog("stat_player","teamkills",PInfo[zzPlayerID].zzID,string(PInfo[zzPlayerID].zzTeamKills));
+  BufferLog("stat_player","efficiency",PInfo[zzPlayerID].zzID,string(zzEfficiency));
+  BufferLog("stat_player","time_on_server",PInfo[zzPlayerID].zzID,string(Level.TimeSeconds-PInfo[zzPlayerID].zzJoinTime));
+  BufferLog("stat_player","ttl",PInfo[zzPlayerID].zzID,string(zzTTL));
 
   for (i=0;i<zzRI.zzIndex;++i)
   {
     if (!(zzRI.GetWeaponName(i) ~= "translocator"))
     {
-      BufferLog("weap_shotcount",zzRI.GetWeaponName(i),PI[zzPlayerID].zzID,string(zzRI.GetShotCount(i)));
-      BufferLog("weap_hitcount",zzRI.GetWeaponName(i),PI[zzPlayerID].zzID,string(zzRI.GetHitCount(i)));
-      BufferLog("weap_damagegiven",zzRI.GetWeaponName(i),PI[zzPlayerID].zzID,string(zzRI.GetDamage(i)));
-      BufferLog("weap_accuracy",zzRI.GetWeaponName(i),PI[zzPlayerID].zzID,string(zzRI.GetAccu(i)));
+      BufferLog("weap_shotcount",zzRI.GetWeaponName(i),PInfo[zzPlayerID].zzID,string(zzRI.GetShotCount(i)));
+      BufferLog("weap_hitcount",zzRI.GetWeaponName(i),PInfo[zzPlayerID].zzID,string(zzRI.GetHitCount(i)));
+      BufferLog("weap_damagegiven",zzRI.GetWeaponName(i),PInfo[zzPlayerID].zzID,string(zzRI.GetDamage(i)));
+      BufferLog("weap_accuracy",zzRI.GetWeaponName(i),PInfo[zzPlayerID].zzID,string(zzRI.GetAccu(i)));
     }
   }
 
@@ -573,7 +595,7 @@ function int GetID (int PID)
 
    for (i=0;i<32;++i)
    {
-     if (PI[i].zzID == PID)
+     if (PInfo[i].zzID == PID)
       return i;
    }
 
@@ -696,5 +718,6 @@ function LogMutatorList()
 defaultproperties
 {
     bEnabled=True
-    zzVersion="0.4.2b"
+    bDebug=False
+    zzVersion="5.0"
 }

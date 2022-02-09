@@ -6,13 +6,12 @@ class UTSComboSN extends SpawnNotify;
 
 var UTSDamageMut UTSDM;
 
-event Actor SpawnNotification (Actor A)
+simulated event Actor SpawnNotification (Actor A)
 {
   if ( (A == None) || (A.Instigator == None) )
   {
     return A;
   }
-  //UTSDM.zzBeamMin(A);
   UTSDM.zzCombo(A);
   return A;
 }
@@ -20,4 +19,5 @@ event Actor SpawnNotification (Actor A)
 defaultproperties
 {
     ActorClass=Class'Botpack.UT_ComboRing'
+    RemoteRole=ROLE_SimulatedProxy
 }
