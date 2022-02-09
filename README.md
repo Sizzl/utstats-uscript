@@ -1,6 +1,8 @@
 # UTStats #
 Logs game events in sql format for stat collection
-Copyright (C) 2004/2005 azazel, )°DoE°(-AnthraX and pjmodos
+Copyright (C) 2004/2005 azazel, )°DoE°(-AnthraX and toa
+
+UTAssault.net modifications by Cratos, brajan and Sizzl (Timo/Weirdo) (2005-2008)
 
 This program is free software; you can redistribute and/or modify it under the terms of the Open Unreal Mod License.
 See license for more information.
@@ -8,16 +10,19 @@ See license for more information.
 - - - -
 
 ## Version 4.2a beta ##
+Fork of original UA code for UTAssault.net League Games and PUGs
+
 _Original release notes adapted for GitHub, with ChangeLog observations added_
 
-First fork of original UA code for UTAssault.net League Games and PUGs
-
-All release history can be found at https://unrealadmin.org/forums/forumdisplay.php?f=174
+Original release history for v4.2 and below can be found at https://unrealadmin.org/forums/forumdisplay.php?f=174
 
 ## ChangeLog ##
 
 ### v4.2a beta  ###
-SmartAS:
+SmartAS 1.01k (2008) - enhanced support for UTA Pug games:
+ - Added a trigger by way of a config variable which would be set during match setup to generate a new match code
+
+SmartAS 1.01a-j (2005):
  - Moved some of the Assault-specific stats processing into a separate mod
  - Introduced LeagueAssault match-mode support
  - Pulled in additional Assault objective statistics

@@ -1,21 +1,24 @@
 //-----------------------------------------------------------
 //  SmartASS - Cratos@gmx.at
+//  Modified July 2008 timo@utassault.net for UTA Pug matches
 //-----------------------------------------------------------
 class SmartAS_Mutator expands Mutator;
 
-var config bool bEnabled;
-var config bool bDebug;
-var config int MapSequence;
-var config string gRedTeam;
-var config string gBlueTeam;
-var config string MatchCode;
+var() config bool bEnabled;
+var() config bool bDebug;
+var() config int MapSequence;
+var() config string gRedTeam;
+var() config string gBlueTeam;
+var() config string MatchCode;
 var string SmartASVersion;
-var config int AssistArea;
-var config int AssistTimeOut;
-var config bool bShowAssistMessage;
-var config bool bPlayAssistSound;
-var config string DebugName;
-var config int MaxID;
+var() config int AssistArea;
+var() config int AssistTimeOut;
+var() config bool bShowAssistMessage;
+var() config bool bPlayAssistSound;
+var() config string DebugName;
+var() config int MaxID;
+var() config bool bGenerateNewCode;
+
 
 var class<actor> MessageClass;
 
@@ -160,11 +163,12 @@ function LogGameStart()
 	LogSpecialEvent("ass_teamscore", RedScore, BlueScore);
 
 	// Matchcode
-	if (bMatchMode && (RedTeam!=gRedTeam || BlueTeam!=gBlueTeam))
+	if (bGenerateNewCode || (bMatchMode && (RedTeam!=gRedTeam || BlueTeam!=gBlueTeam)))
 	{
 		gRedTeam = RedTeam;
 		gBlueTeam = BlueTeam;
 		MatchCode = GenerateAssaultMatchCode();
+		bGenerateNewCode = False;
 		SaveConfig();
 	}
 	LogSpecialEvent("ass_matchcode", MatchCode);
@@ -600,7 +604,8 @@ function LogSpecialEventString(string EventType, optional coerce string Arg1, op
 
 function Mutate(string MutateString, PlayerPawn Sender)
 {
-	if (MutateString ~= "smartas") Sender.ClientMessage("SmartAS Version:"@SmartASVersion);
+	local float f;
+	if (MutateString ~= "smartas") Sender.ClientMessage("SmartAS Version:"@SmartASVersion$", current match code:"@MatchCode);
 	else super.Mutate(MutateString, Sender);
 }
 
@@ -609,7 +614,7 @@ defaultproperties
      bEnabled=True
      gRedTeam="RED"
      gBlueTeam="BLUE"
-     SmartASVersion="1.01i"
+     SmartASVersion="1.01k"
      AssistArea=1000
      AssistTimeOut=5
      DebugName="debug"
