@@ -144,13 +144,15 @@ function Mutate(string MutateString, PlayerPawn Sender)
 
 function MutatorTakeDamage( out int ActualDamage, Pawn Victim, Pawn InstigatedBy, out Vector HitLocation, out Vector Momentum, name DamageType)
 {
-    local int i, VictimPID, InstigatorPID, TotalDamage;
+    local int i, VictimPID, InstigatorPID, TotalDamage, PreHealth, PreArmour;
     local bool bVictimFound, bInstigatorFound;
     local Inventory Inv;
     
     if (zzLogger != None)
         bDebug = zzLogger.bDebug;
     TotalDamage = ActualDamage; // MTD occurs after Inventory absorbs damage, so we're going to rewind this and get the TotalDamage
+    PreHealth = -1;
+    PreArmour = -1;
     if (Victim.IsA('PlayerPawn'))
         Inv = PlayerPawn(Victim).FindInventoryType(class'UTSInvTracker');
     if ( Inv != None )
@@ -169,6 +171,8 @@ function MutatorTakeDamage( out int ActualDamage, Pawn Victim, Pawn InstigatedBy
                 log("###    - DT: ID-"@UTSInvTracker(Inv).DT.InDamage$", D-"@UTSInvTracker(Inv).DT.Damage$", RA-"@UTSInvTracker(Inv).DT.ReducedAmount$", RT-"@UTSInvTracker(Inv).DT.ReturnDamage$", L-"@UTSInvTracker(Inv).DT.HitLocation,'UTStats');
             }
             TotalDamage = UTSInvTracker(Inv).DT.InDamage;
+            PreHealth = UTSInvTracker(Inv).DT.InHealth;
+            PreArmour = UTSInvTracker(Inv).DT.InArmour;
         }
         UTSInvTracker(Inv).ResetInvTracker();
     }
@@ -203,7 +207,7 @@ function MutatorTakeDamage( out int ActualDamage, Pawn Victim, Pawn InstigatedBy
         if (!bInstigatorFound && (zzPI[i].zzPID == InstigatorPID) && (zzPI[i].zzRI != None))
         {
             if ((Victim != InstigatedBy) && (bNoTeamGame || Victim.PlayerReplicationInfo.Team != InstigatedBy.PlayerReplicationInfo.Team))
-                zzPI[i].zzRI.zzGaveDamage(DamageType,TotalDamage,instigatedBy.Weapon, Victim);
+                zzPI[i].zzRI.zzGaveDamage(DamageType,TotalDamage,instigatedBy.Weapon, Victim, PreHealth, PreArmour, ActualDamage);
             bInstigatorFound = true;
         }
         if (bVictimFound && bInstigatorFound)

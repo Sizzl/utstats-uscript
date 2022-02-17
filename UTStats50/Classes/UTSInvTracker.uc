@@ -10,7 +10,7 @@ class UTSInvTracker extends TournamentPickup;
 // DT struct definition
 struct DamageTracking
 {
-    var int InDamage,Damage,ReducedAmount,ReturnDamage;
+    var int InDamage,Damage,ReducedAmount,ReturnDamage,InHealth,InArmour;
     var name DamageType;
     var vector HitLocation;
     var Inventory Armour;
@@ -52,17 +52,13 @@ function bool CheckSpawnProtection()
     local int i;
     for ( Inv=Owner.Inventory; Inv!=None; Inv=Inv.Inventory )
     {
-        if (Inv.IsA('LeagueAS_Inventory'))
+        if (InStr(string(Inv.class),"LeagueAS_Inventory") > 0)
         {
-            if (LeagueAS_Inventory(Inv).SpawnProtectActive)
+            if (Inv.GetPropertyText("SpawnProtectActive") ~= "True")
             {
                 if (UTSDM.bDebug)
                     log("### UTSIT: LAS spawn protection active",'UTStats');
                 return true;
-            }
-            else
-            {
-                return false;
             }
         }
         i++;
@@ -75,7 +71,7 @@ function bool CheckSpawnProtection()
 function int ArmorAbsorbDamage(int Damage, name DamageType, vector HitLocation)
 {
     local Inventory Inv, FirstArmor;
-    local int i, InvCount, ReducedAmount, ReturnDamage, lastPri;
+    local int i, InvCount, ReducedAmount, ReturnDamage, lastPri, InCharge;
     if (UTSDM.bDebug)
         log("### UTSIT: Damage-"@Damage$", type:"@DamageType$", location:"@HitLocation,'UTStats');
 
@@ -92,6 +88,7 @@ function int ArmorAbsorbDamage(int Damage, name DamageType, vector HitLocation)
         {
             if (UTSDM.bDebug)
                 log("### UTSIT: Detected armour-"@Inv$", for owner:"@Owner,'UTStats');
+            InCharge+=Inv.Charge;
             InvCount++;
         }
         else if (Inv.IsA('UTSInvTracker'))
@@ -115,7 +112,8 @@ function int ArmorAbsorbDamage(int Damage, name DamageType, vector HitLocation)
         if (i > 100)
             break;
     }
-
+    DT.InHealth = PlayerPawn(Owner).Health;
+    DT.InArmour = InCharge;
     if (InvCount > 0)
     {
         FirstArmor=Inventory.PrioritizeArmor(Damage, DamageType, HitLocation);

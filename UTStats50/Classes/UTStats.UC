@@ -175,13 +175,13 @@ function LogKill (int KillerID, int VictimID, string KillerWeaponName, string Vi
 // =============================================================================
 // LogKillDetail ~ Calls backwards from UTSReplicationInfo > UTSDamageMut > this
 // =============================================================================
-function LogKillDetail (int VictimPID, int InstigatorPID, string zzInstigatorWeapon, int zzInstigatorDamage, float zzLastWeaponHit, float zzLastHit, int zzVictimArmour, int zzVictimHealth)
+function LogKillDetail (int VictimPID, int InstigatorPID, string zzInstigatorWeapon, int zzInstigatorDamage, float zzLastWeaponHit, float zzLastHit, int zzVictimArmour, int zzVictimHealth, int zzVPreArmour, int zzVPreHealth, int zzActualDamage)
 {
   if (  !bGameStarted &&  !GameStarted() )
   {
     return;
   }
-  LogEventString(GetTimeStamp() $ Chr(9) $ "damage_tracker" $ Chr(9) $ string(VictimPID) $ Chr(9) $ string(InstigatorPID) $ Chr(9) $ zzInstigatorWeapon $ Chr(9) $ string(zzInstigatorDamage) $ Chr(9) $ string(zzLastWeaponHit) $ Chr(9) $ string(zzLastHit) $ Chr(9) $ string(zzVictimArmour) $ Chr(9) $ string(zzVictimHealth));
+  LogEventString(GetTimeStamp() $ Chr(9) $ "damage_tracker" $ Chr(9) $ string(VictimPID) $ Chr(9) $ string(InstigatorPID) $ Chr(9) $ zzInstigatorWeapon $ Chr(9) $ string(zzInstigatorDamage) $ Chr(9) $ string(zzActualDamage) $ Chr(9) $ string(zzLastWeaponHit) $ Chr(9) $ string(zzLastHit) $ Chr(9) $ string(zzVictimArmour) $ Chr(9) $ string(zzVictimHealth) $ Chr(9) $ string(zzVPreArmour) $ Chr(9) $ string(zzVPreHealth));
 }
 
 // =============================================================================

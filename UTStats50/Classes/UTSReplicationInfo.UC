@@ -14,8 +14,8 @@ struct WeaponInfo
     var weapon zzWeapon;
     var string zzWeaponName;
     var class<Weapon> zzWeaponClass;
-    var int zzShotCount,zzLastShotCount,zzHitCount,zzVA,zzVH; // VA/VH used in PlayerTracking only
-    var float zzDamageGiven,zzLastHit; // LastHit used in PlayerTracking only
+    var int zzShotCount,zzLastShotCount,zzHitCount,zzPA,zzPH,zzVA,zzVH; // VA/VH used in PlayerTracking only
+    var float zzDamageGiven, zzDamageHealth, zzLastHit; // DamageHealth and LastHit used in PlayerTracking only
 
     // Used by zzGaveDamage
     var name FirstDamageType,AltDamageType;
@@ -315,10 +315,11 @@ function zzUpdateHistory(int CurrentWeapon)
    zzWeaponHistory[0] = CurrentWeapon;
 }
 
-function zzGaveDamage (name DamageType, int DamageGiven, Weapon W, optional Pawn Victim)
+function zzGaveDamage (name DamageType, int DamageGiven, Weapon W, Pawn Victim, int VPreHealth, int VPreArmour, int ActualDamage)
 {
     local int i, j;
     local bool bWeaponFound, bEnemyFound;
+    local string ArmourAmount;
 
     zzDamageGiven += DamageGiven; // Automatic replication
 
@@ -349,18 +350,23 @@ function zzGaveDamage (name DamageType, int DamageGiven, Weapon W, optional Pawn
                         if (bDebug)
                             log("### UTS-DMG: Found PID"@zzPT[j].PID@"in slot"@j$": Adding"@DamageGiven@"dmg to "$zzWI[zzWeaponHistory[i]].zzWeaponName,'UTStats');
                         zzPT[j].zzWI[zzWeaponHistory[i]].zzDamageGiven += DamageGiven;
+                        zzPT[j].zzWI[zzWeaponHistory[i]].zzDamageHealth += ActualDamage;
                         zzPT[j].zzWI[zzWeaponHistory[i]].zzLastHit = Level.TimeSeconds;
                         zzPT[j].zzLastHit = Level.TimeSeconds;
+                        zzPT[j].zzWI[zzWeaponHistory[i]].zzPH = VPreHealth;
+                        zzPT[j].zzWI[zzWeaponHistory[i]].zzPA = VPreArmour;
                         zzPT[j].zzWI[zzWeaponHistory[i]].zzVH = PlayerPawn(Victim).Health;
-                        if (PlayerPawn(Victim).PlayerReplicationInfo.IsA('LeagueAS_ExtPlayerReplicationInfo') || LeagueAS_ExtPlayerReplicationInfo(PlayerPawn(Victim).PlayerReplicationInfo) != None)
+                        zzPT[j].zzWI[zzWeaponHistory[i]].zzVA = -1;
+                        if (InStr(string(PlayerPawn(Victim).PlayerReplicationInfo.class),"LeagueAS_ExtPlayerReplicationInfo") > 0)
                         {
-                            zzPT[j].zzWI[zzWeaponHistory[i]].zzVA = LeagueAS_ExtPlayerReplicationInfo(PlayerPawn(Victim).PlayerReplicationInfo).Armour;
+                            ArmourAmount = PlayerPawn(Victim).PlayerReplicationInfo.GetPropertyText("Armour");
+                            if (Len(ArmourAmount) > 0)
+                                zzPT[j].zzWI[zzWeaponHistory[i]].zzVA = int(ArmourAmount);
                         }
-                        else
+                        if (zzPT[j].zzWI[zzWeaponHistory[i]].zzVA == -1)
                         {
                             zzPT[j].zzWI[zzWeaponHistory[i]].zzVA = zzGetArmourCharge(Victim);
                         }
-
                         bEnemyFound = True;
                         break;
                     }
@@ -381,17 +387,22 @@ function zzGaveDamage (name DamageType, int DamageGiven, Weapon W, optional Pawn
                                 zzPT[j].zzWI[zzWeaponHistory[i]].zzWeaponClass = zzWI[zzWeaponHistory[i]].zzWeaponClass;
                             }
                             zzPT[j].zzWI[zzWeaponHistory[i]].zzDamageGiven = DamageGiven;
+                            zzPT[j].zzWI[zzWeaponHistory[i]].zzDamageHealth = ActualDamage;
                             zzPT[j].zzWI[zzWeaponHistory[i]].zzVH = PlayerPawn(Victim).Health;
                             zzPT[j].zzWI[zzWeaponHistory[i]].zzLastHit = Level.TimeSeconds;
                             zzPT[j].zzLastHit = Level.TimeSeconds;
-                            if (PlayerPawn(Victim).PlayerReplicationInfo.IsA('LeagueAS_ExtPlayerReplicationInfo') || LeagueAS_ExtPlayerReplicationInfo(PlayerPawn(Victim).PlayerReplicationInfo) != None)
+                            zzPT[j].zzWI[zzWeaponHistory[i]].zzVA = -1;
+                            if (InStr(string(PlayerPawn(Victim).PlayerReplicationInfo.class),"LeagueAS_ExtPlayerReplicationInfo") > 0)
                             {
-                                zzPT[j].zzWI[zzWeaponHistory[i]].zzVA = LeagueAS_ExtPlayerReplicationInfo(PlayerPawn(Victim).PlayerReplicationInfo).Armour;
+                                ArmourAmount = PlayerPawn(Victim).PlayerReplicationInfo.GetPropertyText("Armour");
+                                if (Len(ArmourAmount) > 0)
+                                    zzPT[j].zzWI[zzWeaponHistory[i]].zzVA = int(ArmourAmount);
                             }
-                            else
+                            if (zzPT[j].zzWI[zzWeaponHistory[i]].zzVA == -1)
                             {
                                 zzPT[j].zzWI[zzWeaponHistory[i]].zzVA = zzGetArmourCharge(Victim);
                             }
+
                             if (bDebug)
                                 log("### UTS-DMG: Set up new PID"@zzPT[j].PID@"in slot"@j$": Adding"@DamageGiven@"dmg to "$zzWI[zzWeaponHistory[i]].zzWeaponName,'UTStats');
 
@@ -647,10 +658,13 @@ function GetPlayerDamage (UTStats UTSLogger, int VictimPID) {
                         UTSLogger.LogKillDetail(VictimPID,PlayerPawn(P).PlayerReplicationInfo.PlayerID,
                             zzPT[i].zzWI[j].zzWeaponName,
                             zzPT[i].zzWI[j].zzDamageGiven,
+                            zzPT[i].zzWI[j].zzDamageHealth,
                             zzPT[i].zzWI[j].zzLastHit,
                             zzPT[i].zzLastHit,
                             zzPT[i].zzWI[j].zzVA,
-                            zzPT[i].zzWI[j].zzVH);
+                            zzPT[i].zzWI[j].zzVH,
+                            zzPT[i].zzWI[j].zzPA,
+                            zzPT[i].zzWI[j].zzPH);
                     else
                     {
                         //bot?
@@ -677,6 +691,7 @@ function ResetPlayerDamage (int VictimPID) {
                 zzPT[i].zzWI[j].zzLastShotCount = 0;
                 zzPT[i].zzWI[j].zzHitCount = 0;
                 zzPT[i].zzWI[j].zzDamageGiven = 0;
+                zzPT[i].zzWI[j].zzDamageHealth = 0;
                 zzPT[i].zzWI[j].FirstDamageType = '';
                 zzPT[i].zzWI[j].AltDamageType = '';
                 zzPT[i].zzWI[j].FirstProjClass = None;
@@ -690,6 +705,8 @@ function ResetPlayerDamage (int VictimPID) {
                 zzPT[i].zzWI[j].zzLastHit = -1;
                 zzPT[i].zzWI[j].zzVA = -1;
                 zzPT[i].zzWI[j].zzVH = -1;
+                zzPT[i].zzWI[j].zzPA = -1;
+                zzPT[i].zzWI[j].zzPH = -1;
             }
             zzPT[i].PID = -1;
             zzPT[i].zzLastHit = -1;

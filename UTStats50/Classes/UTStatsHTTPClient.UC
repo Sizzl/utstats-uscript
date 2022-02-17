@@ -8,12 +8,12 @@
 class UTStatsHTTPClient extends UBrowserHTTPClient;
 
 var UTStats UTS;
-var bool bDebug, bForceCheck; // inherit from UTStats config
+var bool bUseAlt, bDebug, bForceCheck; // inherit from UTStats config
 var string IPData;
 var int Timeout;
 
-var() config string CheckAddress, CheckURI;
-var() config int CheckPort;
+var() config string CheckAddress, CheckPath, AltCheckAddress, AltCheckPath;
+var() config int CheckPort, AltCheckPort;
 
 function GetServerIP ()
 {
@@ -68,8 +68,10 @@ function GetServerIP ()
                 else
                     Log("### Private IP detected ("$ReturnedIP$"), attempting to fetch Public IP...",'UTStats');
             ReturnedIP = "";
-            // curl -s checkip.amazonaws.com
-            Browse(CheckAddress, CheckURI, CheckPort, Timeout);
+            if (bUseAlt)
+                Browse(AltCheckAddress, AltCheckPath, AltCheckPort, Timeout);
+            else
+                Browse(CheckAddress, CheckPath, CheckPort, Timeout);
         }
         else
         {
@@ -168,7 +170,6 @@ function DoBind()
 function SetError(int code)
 {
     Super.SetError(code);
-
     switch(code)
     {
         case -1:
@@ -184,9 +185,14 @@ function SetError(int code)
             Log("### Error resolving to the host of the IP for the domain "$ServerAddress,'UTStats');
             break;
         default:
-            if (code != 200)
-                CheckIP();
             Log("### Received HTTP error with code "$string(code)$" from "$ServerAddress,'UTStats');
+    }
+    if (code != 200 && bUseAlt)
+        CheckIP();
+    else if (code != 200)
+    {
+        bUseAlt = true; // Attempt alternative server before reverting to old GetIP method.
+        GetServerIP();
     }
 }
 
@@ -199,7 +205,10 @@ defaultproperties
 {
     bHidden=True
     CheckAddress="checkip.amazonaws.com"
+    CheckPath="/"
     CheckPort=80
-    CheckURI="/"
-    Timeout=10
+    AltCheckAddress="ipinfo.io"
+    AltCheckPath="/ip"
+    AltCheckPort=80
+    Timeout=6
 }

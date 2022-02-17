@@ -27,7 +27,7 @@ UT Stats:
  - Moved SpawnNotify projectile and combo tracking out to Client Simulated
  - Significant debug logging support added
  - "Kill detail" per-player damage attribution tracking added
- - Added private IP checking and lookup via AWS CheckIP API to handle Cloud VM Public IP lookup
+ - Added private IP checking and lookup via AWS CheckIP API (falling back to ipinfo.io) to handle Cloud VM Public IP lookup
 
 ### v4.2a beta  ###
 SmartAS 1.01k (2008) - enhanced support for UTA Pug games:
