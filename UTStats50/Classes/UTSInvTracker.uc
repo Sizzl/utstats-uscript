@@ -212,8 +212,6 @@ defaultproperties
     bIsAnArmor=True
     ItemName="UTS Inventory Tracker"
     Charge=0
-    ProtectionType1=ProtectNone
-    ProtectionType2=ProtectNone
     MaxDesireability=0
     RemoteRole=ROLE_DumbProxy
     CollisionRadius=0

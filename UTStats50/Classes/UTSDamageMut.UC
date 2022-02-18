@@ -69,10 +69,9 @@ function Mutate(string MutateString, PlayerPawn Sender)
         if (bDebug)
             Sender.ClientMessage(" - Debugging: Enabled!");
     }
-
     if (zzLogger != None && zzLogger.bEnabled)
     {
-        if (MutateString~="uts debug")
+        if (MutateString~="uts debug" && Sender.bAdmin)
         {
             if (zzLogger.bDebug == true) {
                 zzLogger.bDebug = false;
