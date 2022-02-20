@@ -561,9 +561,7 @@ function BufferLog ( string zzTag, string zzType, int zzPlayerID, string zzValue
    zzBuffer = zzBuffer$":::"$zzTag$chr(9)$zzType$chr(9)$string(zzPlayerID)$chr(9)$zzValue;
 }
 
-function ProcessBuffer ();
-
-function zzProcessBuffer () // This will cause extreme cpu usage on the server for a sec :)
+function ProcessBuffer () // This will cause extreme cpu usage on the server for a sec :)
 {
    local int index,i;
 
