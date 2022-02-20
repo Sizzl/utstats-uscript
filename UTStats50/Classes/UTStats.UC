@@ -175,7 +175,7 @@ function LogKill (int KillerID, int VictimID, string KillerWeaponName, string Vi
 // =============================================================================
 // LogKillDetail ~ Calls backwards from UTSReplicationInfo > UTSDamageMut > this
 // =============================================================================
-function LogKillDetail (int VictimPID, int InstigatorPID, string zzInstigatorWeapon, int zzInstigatorDamage, float zzLastWeaponHit, float zzLastHit, int zzVictimArmour, int zzVictimHealth, int zzVPreArmour, int zzVPreHealth, int zzActualDamage)
+function LogKillDetail (int VictimPID, int InstigatorPID, string zzInstigatorWeapon, int zzInstigatorDamage, int zzActualDamage, float zzLastWeaponHit, float zzLastHit, int zzVictimArmour, int zzVictimHealth, int zzVPreArmour, int zzVPreHealth)
 {
   if (  !bGameStarted &&  !GameStarted() )
   {
